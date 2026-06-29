@@ -37,6 +37,13 @@ export default function TabLayout() {
           headerTitle: 'Global Rankings',
         }}
       />
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: 'Search',
+          headerTitle: 'Search',
+        }}
+      />
     </Tabs>
   )
 }

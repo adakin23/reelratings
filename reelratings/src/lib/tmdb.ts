@@ -47,3 +47,43 @@ export async function getPopularMovies(page = 1): Promise<TMDBSearchResult[]> {
   const data = await response.json()
   return data.results ?? []
 }
+
+export interface TMDBPerson {
+  id: number
+  name: string
+  biography: string
+  birthday: string | null
+  profile_path: string | null
+  known_for_department: string
+}
+
+export interface TMDBPersonCredit {
+  id: number
+  title: string
+  poster_path: string | null
+  release_date: string
+  character?: string
+  job?: string
+}
+
+export async function searchPeople(query: string): Promise<{ id: number; name: string; profile_path: string | null; known_for_department: string }[]> {
+  const response = await fetch(
+    `${TMDB_BASE_URL}/search/person?api_key=${API_KEY}&query=${encodeURIComponent(query)}`
+  )
+  const data = await response.json()
+  return data.results ?? []
+}
+
+export async function getPersonDetails(personId: number): Promise<TMDBPerson> {
+  const response = await fetch(
+    `${TMDB_BASE_URL}/person/${personId}?api_key=${API_KEY}`
+  )
+  return response.json()
+}
+
+export async function getPersonMovieCredits(personId: number): Promise<{ cast: TMDBPersonCredit[]; crew: TMDBPersonCredit[] }> {
+  const response = await fetch(
+    `${TMDB_BASE_URL}/person/${personId}/movie_credits?api_key=${API_KEY}`
+  )
+  return response.json()
+}

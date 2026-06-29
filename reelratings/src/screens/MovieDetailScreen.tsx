@@ -68,11 +68,9 @@ export default function MovieDetailScreen() {
   const loadMovie = async (movieId: string) => {
     setLoading(true)
     try {
-      // Fetch TMDB details
       const details = await getMovieDetails(Number(movieId))
       setMovie(details)
 
-      // Fetch user's personal data for this movie
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -83,7 +81,6 @@ export default function MovieDetailScreen() {
         .eq('movie_id', movieId)
         .single()
 
-      // Fetch all user elos for normalization
       const { data: allUserMovies } = await supabase
         .from('user_movies')
         .select('elo')
@@ -100,7 +97,6 @@ export default function MovieDetailScreen() {
         })
       }
 
-      // Fetch global average ELO for this movie
       const { data: globalData } = await supabase
         .from('user_movies')
         .select('elo')
@@ -109,8 +105,6 @@ export default function MovieDetailScreen() {
 
       if (globalData && globalData.length > 0) {
         const avgElo = globalData.reduce((sum, r) => sum + r.elo, 0) / globalData.length
-
-        // Get global min/max for normalization
         const { data: allGlobal } = await supabase
           .from('user_movies')
           .select('elo')
@@ -132,7 +126,6 @@ export default function MovieDetailScreen() {
 
     setStatusUpdating(true)
     try {
-      // Check if user_movie record exists
       const { data: existing } = await supabase
         .from('user_movies')
         .select('id')
@@ -147,7 +140,6 @@ export default function MovieDetailScreen() {
           .eq('user_id', user.id)
           .eq('movie_id', id)
       } else {
-        // First ensure movie exists in movies table
         if (movie) {
           await supabase.from('movies').upsert(
             {
@@ -281,9 +273,13 @@ export default function MovieDetailScreen() {
             <Text style={styles.sectionTitle}>
               {directors.length === 1 ? 'Director' : 'Directors'}
             </Text>
-            <Text style={styles.directorName}>
-              {directors.map(d => d.name).join(', ')}
-            </Text>
+            <View style={styles.directorRow}>
+              {directors.map(d => (
+                <TouchableOpacity key={d.id} onPress={() => router.push(`/person/${d.id}`)}>
+                  <Text style={styles.directorName}>{d.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
 
@@ -292,7 +288,11 @@ export default function MovieDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Cast</Text>
             {topCast.map(actor => (
-              <View key={actor.id} style={styles.castRow}>
+              <TouchableOpacity
+                key={actor.id}
+                style={styles.castRow}
+                onPress={() => router.push(`/person/${actor.id}`)}
+              >
                 {actor.profile_path ? (
                   <Image
                     source={{ uri: `https://image.tmdb.org/t/p/w92${actor.profile_path}` }}
@@ -305,7 +305,7 @@ export default function MovieDetailScreen() {
                   <Text style={styles.castName}>{actor.name}</Text>
                   <Text style={styles.castCharacter}>{actor.character}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -415,9 +415,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
+  directorRow: {
+    gap: 8,
+  },
   directorName: {
-    color: '#cccccc',
+    color: '#4a9eff',
     fontSize: 15,
+    fontWeight: '500',
   },
   castRow: {
     flexDirection: 'row',
@@ -437,7 +441,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   castName: {
-    color: '#ffffff',
+    color: '#4a9eff',
     fontSize: 14,
     fontWeight: '600',
   },
