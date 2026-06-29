@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useRouter } from 'expo-router'
 import {
   View,
   Text,
@@ -32,6 +33,7 @@ export default function RankingsScreen() {
   const [filtered, setFiltered] = useState<RankedMovie[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const router = useRouter()
 
   useEffect(() => {
     loadRankings()
@@ -134,6 +136,13 @@ export default function RankingsScreen() {
         onChangeText={setSearch}
       />
 
+      <TouchableOpacity
+        style={styles.importButton}
+        onPress={() => router.push('/import')}
+      >
+        <Text style={styles.importButtonText}>↑ Import from Letterboxd</Text>
+      </TouchableOpacity>
+
       {filtered.length === 0 ? (
         <View style={styles.centered}>
           <Text style={styles.emptyText}>
@@ -168,6 +177,7 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     margin: 12,
+    marginBottom: 6,
     padding: 10,
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
@@ -175,6 +185,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     borderWidth: 1,
     borderColor: '#2a2a2a',
+  },
+  importButton: {
+    marginHorizontal: 12,
+    marginBottom: 10,
+    padding: 10,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  importButtonText: {
+    color: '#e8572a',
+    fontSize: 14,
+    fontWeight: '600',
   },
   list: {
     paddingHorizontal: 12,
