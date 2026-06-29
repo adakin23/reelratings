@@ -8,7 +8,9 @@ import {
   PanResponder,
   Dimensions,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { getPopularMovies, getPosterUrl } from '../lib/tmdb'
 import { calculateElo } from '../lib/elo'
@@ -29,22 +31,20 @@ export default function MatchupScreen() {
   const [movies, setMovies] = useState<[Movie, Movie] | null>(null)
   const [loading, setLoading] = useState(true)
   const [swipeHint, setSwipeHint] = useState<string | null>(null)
+  const router = useRouter()
 
   const moviesRef = useRef<[Movie, Movie] | null>(null)
   const userIdRef = useRef<string | null>(null)
 
-  // Per-card animation values
   const topTranslateX = useRef(new Animated.Value(0)).current
   const bottomTranslateX = useRef(new Animated.Value(0)).current
-
-  // Whole-screen animation for up/down votes
   const screenTranslateY = useRef(new Animated.Value(0)).current
   const screenOpacity = useRef(new Animated.Value(1)).current
 
-  // Gesture tracking refs
   const directionLocked = useRef<'horizontal' | 'vertical' | null>(null)
   const activeCard = useRef<'top' | 'bottom'>('top')
   const touchStartY = useRef(0)
+  const isTap = useRef(true)
 
   useEffect(() => {
     moviesRef.current = movies
@@ -155,13 +155,15 @@ export default function MatchupScreen() {
 
       onPanResponderGrant: (evt) => {
         directionLocked.current = null
+        isTap.current = true
         touchStartY.current = evt.nativeEvent.pageY
         const midpoint = SCREEN_HEIGHT / 2
         activeCard.current = touchStartY.current < midpoint ? 'top' : 'bottom'
       },
 
       onPanResponderMove: (_, gs) => {
-        // Lock direction early
+        isTap.current = false
+
         if (!directionLocked.current) {
           if (Math.abs(gs.dx) > DIRECTION_LOCK_THRESHOLD || Math.abs(gs.dy) > DIRECTION_LOCK_THRESHOLD) {
             directionLocked.current = Math.abs(gs.dx) > Math.abs(gs.dy) ? 'horizontal' : 'vertical'
@@ -170,22 +172,21 @@ export default function MatchupScreen() {
 
         if (directionLocked.current === 'vertical') {
           screenTranslateY.setValue(gs.dy)
+          if (Math.abs(gs.dy) > 30) {
+            setSwipeHint(gs.dy < 0 ? '✓ Top movie wins' : '✓ Bottom movie wins')
+          }
         } else if (directionLocked.current === 'horizontal') {
           if (activeCard.current === 'top') {
             topTranslateX.setValue(gs.dx)
           } else {
             bottomTranslateX.setValue(gs.dx)
           }
-
-          // Show hint
           const current = moviesRef.current
           if (current && Math.abs(gs.dx) > 30) {
             const movie = activeCard.current === 'top' ? current[0] : current[1]
             const label = gs.dx < 0 ? "Won't watch" : 'Watchlist'
             setSwipeHint(`${label}: ${movie.title}`)
           }
-        } else if (directionLocked.current === 'vertical' && Math.abs(gs.dy) > 30) {
-          setSwipeHint(gs.dy < 0 ? '✓ Top movie wins' : '✓ Bottom movie wins')
         }
       },
 
@@ -226,7 +227,6 @@ export default function MatchupScreen() {
             ).start()
             return
           }
-
           const movieId = activeCard.current === 'top' ? current[0].id : current[1].id
           const status = gs.dx < 0 ? 'do_not_watch' : 'watchlist'
           const cardAnim = activeCard.current === 'top' ? topTranslateX : bottomTranslateX
@@ -268,6 +268,7 @@ export default function MatchupScreen() {
       </View>
 
       <Animated.View style={[styles.screenAnim, { transform: [{ translateY: screenTranslateY }], opacity: screenOpacity }]}>
+
         {/* Top Card */}
         <Animated.View style={[styles.card, { transform: [{ translateX: topTranslateX }] }]}>
           {topMovie.poster_path ? (
@@ -276,8 +277,18 @@ export default function MatchupScreen() {
             <View style={styles.noPoster}><Text style={styles.noPosterText}>{topMovie.title}</Text></View>
           )}
           <View style={styles.cardOverlay}>
-            <Text style={styles.movieTitle} numberOfLines={2}>{topMovie.title}</Text>
-            <Text style={styles.movieYear}>{topMovie.release_date?.slice(0, 4)}</Text>
+            <View style={styles.cardOverlayRow}>
+              <View style={styles.cardOverlayText}>
+                <Text style={styles.movieTitle} numberOfLines={2}>{topMovie.title}</Text>
+                <Text style={styles.movieYear}>{topMovie.release_date?.slice(0, 4)}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.infoButton}
+                onPress={() => router.push(`/movie/${topMovie.id}`)}
+              >
+                <Text style={styles.infoButtonText}>ⓘ</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </Animated.View>
 
@@ -295,10 +306,21 @@ export default function MatchupScreen() {
             <View style={styles.noPoster}><Text style={styles.noPosterText}>{bottomMovie.title}</Text></View>
           )}
           <View style={styles.cardOverlay}>
-            <Text style={styles.movieTitle} numberOfLines={2}>{bottomMovie.title}</Text>
-            <Text style={styles.movieYear}>{bottomMovie.release_date?.slice(0, 4)}</Text>
+            <View style={styles.cardOverlayRow}>
+              <View style={styles.cardOverlayText}>
+                <Text style={styles.movieTitle} numberOfLines={2}>{bottomMovie.title}</Text>
+                <Text style={styles.movieYear}>{bottomMovie.release_date?.slice(0, 4)}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.infoButton}
+                onPress={() => router.push(`/movie/${bottomMovie.id}`)}
+              >
+                <Text style={styles.infoButtonText}>ⓘ</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </Animated.View>
+
       </Animated.View>
     </View>
   )
@@ -361,6 +383,13 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: 'rgba(0,0,0,0.65)',
   },
+  cardOverlayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardOverlayText: {
+    flex: 1,
+  },
   movieTitle: {
     color: '#ffffff',
     fontSize: 18,
@@ -370,6 +399,14 @@ const styles = StyleSheet.create({
     color: '#aaaaaa',
     fontSize: 14,
     marginTop: 2,
+  },
+  infoButton: {
+    marginLeft: 12,
+    padding: 4,
+  },
+  infoButtonText: {
+    color: '#aaaaaa',
+    fontSize: 22,
   },
   divider: {
     height: 52,

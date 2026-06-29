@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useRouter } from 'expo-router'
 import {
   View,
   Text,
@@ -6,6 +7,7 @@ import {
   FlatList,
   Image,
   TextInput,
+  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native'
 import { supabase } from '../lib/supabase'
@@ -27,6 +29,7 @@ export default function GlobalScreen() {
   const [filtered, setFiltered] = useState<GlobalMovie[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const router = useRouter()
 
   useEffect(() => {
     loadGlobalRankings()
@@ -44,7 +47,6 @@ export default function GlobalScreen() {
   const loadGlobalRankings = async () => {
     setLoading(true)
     try {
-      // Fetch all user_movies with movie data — we'll average ELO per movie
       const { data } = await supabase
         .from('user_movies')
         .select('movie_id, elo, matchup_count, movies(title, poster_path, release_date)')
@@ -55,7 +57,6 @@ export default function GlobalScreen() {
         return
       }
 
-      // Group by movie_id and compute average ELO and total matchups
       const grouped: Record<string, { elos: number[]; totalMatchups: number; movie: any }> = {}
 
       for (const row of data) {
@@ -95,7 +96,7 @@ export default function GlobalScreen() {
   }
 
   const renderItem = ({ item, index }: { item: GlobalMovie; index: number }) => (
-    <View style={styles.row}>
+    <TouchableOpacity style={styles.row} onPress={() => router.push(`/movie/${item.movie_id}`)}>
       <Text style={styles.rank}>#{index + 1}</Text>
 
       {item.poster_path ? (
@@ -118,7 +119,7 @@ export default function GlobalScreen() {
       <View style={styles.scoreBox}>
         <Text style={styles.score}>{item.normalizedScore}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   )
 
   if (loading) {

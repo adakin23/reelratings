@@ -94,32 +94,32 @@ export default function RankingsScreen() {
     }
   }
 
-  const renderItem = ({ item, index }: { item: RankedMovie; index: number }) => (
-    <View style={styles.row}>
-      <Text style={styles.rank}>#{index + 1}</Text>
+const renderItem = ({ item, index }: { item: RankedMovie; index: number }) => (
+  <TouchableOpacity style={styles.row} onPress={() => router.push(`/movie/${item.movie_id}`)}>
+    <Text style={styles.rank}>#{index + 1}</Text>
 
-      {item.poster_path ? (
-        <Image
-          source={{ uri: getPosterUrl(item.poster_path)! }}
-          style={styles.poster}
-        />
-      ) : (
-        <View style={[styles.poster, styles.noPoster]} />
-      )}
+    {item.poster_path ? (
+      <Image
+        source={{ uri: getPosterUrl(item.poster_path)! }}
+        style={styles.poster}
+      />
+    ) : (
+      <View style={[styles.poster, styles.noPoster]} />
+    )}
 
-      <View style={styles.info}>
-        <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
-        <Text style={styles.meta}>
-          {item.release_date?.slice(0, 4)}
-          {item.matchup_count > 0 ? `  ·  ${item.win_count}W ${item.loss_count}L` : '  ·  No matchups yet'}
-        </Text>
-      </View>
-
-      <View style={styles.scoreBox}>
-        <Text style={styles.score}>{item.normalizedScore}</Text>
-      </View>
+    <View style={styles.info}>
+      <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
+      <Text style={styles.meta}>
+        {item.release_date?.slice(0, 4)}
+        {item.matchup_count > 0 ? `  ·  ${item.win_count}W ${item.loss_count}L` : '  ·  No matchups yet'}
+      </Text>
     </View>
-  )
+
+    <View style={styles.scoreBox}>
+      <Text style={styles.score}>{item.normalizedScore}</Text>
+    </View>
+  </TouchableOpacity>
+)
 
   if (loading) {
     return (
