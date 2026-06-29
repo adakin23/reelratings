@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useRouter } from 'expo-router'
+import { useEffect, useState, useCallback } from 'react'
+import { useFocusEffect, useRouter } from 'expo-router'
 import {
   View,
   Text,
@@ -35,9 +35,6 @@ export default function RankingsScreen() {
   const [search, setSearch] = useState('')
   const router = useRouter()
 
-  useEffect(() => {
-    loadRankings()
-  }, [])
 
   useEffect(() => {
     if (!search.trim()) {
@@ -47,6 +44,12 @@ export default function RankingsScreen() {
       setFiltered(movies.filter(m => m.title.toLowerCase().includes(q)))
     }
   }, [search, movies])
+
+  useFocusEffect(
+  useCallback(() => {
+    loadRankings()
+  }, [])
+)
 
   const loadRankings = async () => {
     setLoading(true)

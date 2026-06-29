@@ -140,6 +140,30 @@ This is a Phase 1 data collection goal — the regression runs once enough match
 
 ---
 
+## Onboarding Flow
+
+### Letterboxd users
+1. Sign in with Google/Apple
+2. Prompted to import Letterboxd `watched.csv`
+3. Imported movies become their matchup pool
+4. New movies can be added manually later (search + mark as watched)
+
+### Non-Letterboxd users
+1. Sign in with Google/Apple
+2. Assigned a default pool of ~200 popular movies
+3. As they swipe, unseen movies get filtered out via left/right swipe
+4. Library gradually reflects only movies they've actually seen
+
+### In-matchup swipe gestures (to build)
+- Swipe up = top movie wins
+- Swipe down = bottom movie wins
+- Swipe left = don't want to watch (removes from matchup pool)
+- Swipe right = add to watchlist
+
+### Future: Manual movie adding
+- Search for any movie and mark as watched, watchlist, or do not want to watch
+- Eliminates need to re-import from Letterboxd after watching new films
+
 ## V1 Feature List
 
 - [ ] Auth (Google + Apple sign-in)
