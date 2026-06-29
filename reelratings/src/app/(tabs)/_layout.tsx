@@ -1,0 +1,42 @@
+import { Tabs } from 'expo-router'
+
+export default function TabLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        tabBarStyle: {
+          backgroundColor: '#0d0d0d',
+          borderTopColor: '#222222',
+        },
+        tabBarActiveTintColor: '#ffffff',
+        tabBarInactiveTintColor: '#666666',
+        headerStyle: {
+          backgroundColor: '#0d0d0d',
+        },
+        headerTintColor: '#ffffff',
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Match',
+          headerTitle: 'ReelRatings',
+        }}
+      />
+      <Tabs.Screen
+        name="rankings"
+        options={{
+          title: 'My Rankings',
+          headerTitle: 'My Rankings',
+        }}
+      />
+      <Tabs.Screen
+        name="global"
+        options={{
+          title: 'Global',
+          headerTitle: 'Global Rankings',
+        }}
+      />
+    </Tabs>
+  )
+}
