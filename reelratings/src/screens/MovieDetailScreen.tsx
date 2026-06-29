@@ -169,6 +169,60 @@ export default function MovieDetailScreen() {
     }
   }
 
+  const handleRateNow = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !id || !movie) return
+
+    setStatusUpdating(true)
+    try {
+      // Ensure movie exists in movies table
+      await supabase.from('movies').upsert(
+        {
+          id,
+          title: movie.title,
+          poster_path: movie.poster_path,
+          release_date: movie.release_date || null,
+          overview: movie.overview,
+          genres: movie.genres?.map(g => g.name) ?? [],
+          runtime: movie.runtime ?? null,
+        },
+        { onConflict: 'id' }
+      )
+
+      // Ensure user has this movie in their library as 'watched'
+      const { data: existing } = await supabase
+        .from('user_movies')
+        .select('id, status')
+        .eq('user_id', user.id)
+        .eq('movie_id', id)
+        .single()
+
+      if (!existing) {
+        await supabase.from('user_movies').insert({
+          user_id: user.id,
+          movie_id: id,
+          elo: 1000,
+          status: 'watched',
+        })
+        setUserMovie(prev => prev
+          ? { ...prev, status: 'watched' }
+          : { elo: 1000, matchup_count: 0, win_count: 0, loss_count: 0, status: 'watched', normalizedScore: 50 }
+        )
+      } else if (existing.status !== 'watched') {
+        await supabase.from('user_movies')
+          .update({ status: 'watched' })
+          .eq('user_id', user.id)
+          .eq('movie_id', id)
+        setUserMovie(prev => prev ? { ...prev, status: 'watched' } : null)
+      }
+
+      // Navigate to match tab in focus mode
+      router.push({ pathname: '/(tabs)/', params: { focusMovieId: id } })
+    } finally {
+      setStatusUpdating(false)
+    }
+  }
+
   const directors = movie?.credits?.crew?.filter(c => c.job === 'Director') ?? []
   const topCast = movie?.credits?.cast?.slice(0, 10) ?? []
 
@@ -231,6 +285,15 @@ export default function MovieDetailScreen() {
             <Text style={styles.noRatingText}>No ratings yet — start swiping!</Text>
           )}
         </View>
+
+        {/* Rate Now button */}
+        <TouchableOpacity
+          style={[styles.rateButton, statusUpdating && styles.rateButtonDisabled]}
+          onPress={handleRateNow}
+          disabled={statusUpdating}
+        >
+          <Text style={styles.rateButtonText}>⚡ Rate This Movie Now</Text>
+        </TouchableOpacity>
 
         {/* Status */}
         <View style={styles.section}>
@@ -349,7 +412,7 @@ const styles = StyleSheet.create({
   ratingsRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   ratingBox: {
     backgroundColor: '#1a1a1a',
@@ -379,6 +442,23 @@ const styles = StyleSheet.create({
     color: '#555555',
     fontSize: 13,
     fontStyle: 'italic',
+  },
+  rateButton: {
+    backgroundColor: '#1a2a1a',
+    borderWidth: 1,
+    borderColor: '#2a4a2a',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  rateButtonDisabled: {
+    opacity: 0.5,
+  },
+  rateButtonText: {
+    color: '#6fcf6f',
+    fontSize: 15,
+    fontWeight: '700',
   },
   section: {
     marginBottom: 24,

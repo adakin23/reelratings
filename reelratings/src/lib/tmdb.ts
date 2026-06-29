@@ -87,3 +87,11 @@ export async function getPersonMovieCredits(personId: number): Promise<{ cast: T
   )
   return response.json()
 }
+
+export async function getTopRatedMovies(page = 1): Promise<TMDBSearchResult[]> {
+  const response = await fetch(
+    `${TMDB_BASE_URL}/movie/top_rated?api_key=${API_KEY}&page=${page}`
+  )
+  const data = await response.json()
+  return data.results ?? []
+}
