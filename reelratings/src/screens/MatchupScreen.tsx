@@ -20,12 +20,18 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 80;
 const DIRECTION_LOCK_THRESHOLD = 15;
 
+// Matchups below this count use random pairing (baseline phase).
+// At or above this count, pairing switches to similar-ELO opponents (convergence phase).
+// To adjust: change this constant.
+const PAIRING_RANDOM_THRESHOLD = 10;
+
 interface Movie {
   id: string;
   title: string;
   poster_path: string | null;
   release_date: string;
   elo: number;
+  matchup_count: number;
 }
 
 function rowToMovie(row: any): Movie {
@@ -35,6 +41,7 @@ function rowToMovie(row: any): Movie {
     poster_path: (row.movies as any).poster_path,
     release_date: (row.movies as any).release_date,
     elo: row.elo,
+    matchup_count: row.matchup_count ?? 0,
   };
 }
 
@@ -231,8 +238,9 @@ export default function MatchupScreen() {
         }
       }
 
-      // Normal mode
-      const { data } = await supabase
+      // Normal mode — hybrid pairing
+      // Step 1: pick Movie A from the least-seen movies (most in need of matchups)
+      const { data: candidates } = await supabase
         .from("user_movies")
         .select(
           "movie_id, elo, matchup_count, movies(id, title, poster_path, release_date)",
@@ -240,18 +248,56 @@ export default function MatchupScreen() {
         .eq("user_id", uid)
         .eq("status", "watched")
         .order("matchup_count", { ascending: true })
-        .limit(10);
+        .limit(20);
 
-      if (!data || data.length < 2) {
+      if (!candidates || candidates.length < 2) {
         setMovies(null);
         return;
       }
 
-      const shuffled = [...data].sort(() => Math.random() - 0.5);
-      const pair: [Movie, Movie] = [
-        rowToMovie(shuffled[0]),
-        rowToMovie(shuffled[1]),
-      ];
+      // Pick randomly from the bottom 5 least-seen so we don't always show the same pair
+      const movieA = rowToMovie(
+        candidates[Math.floor(Math.random() * Math.min(5, candidates.length))],
+      );
+
+      let movieB: Movie;
+
+      if (movieA.matchup_count < PAIRING_RANDOM_THRESHOLD) {
+        // Early phase: random opponent — establishes a rough baseline fast
+        const others = candidates.filter((c) => c.movie_id !== movieA.id);
+        movieB = rowToMovie(others[Math.floor(Math.random() * others.length)]);
+      } else {
+        // Later phase: find the opponent with the closest ELO to Movie A
+        // Fetch a broader pool then sort by ELO distance in JS
+        const { data: pool } = await supabase
+          .from("user_movies")
+          .select(
+            "movie_id, elo, matchup_count, movies(id, title, poster_path, release_date)",
+          )
+          .eq("user_id", uid)
+          .eq("status", "watched")
+          .neq("movie_id", movieA.id)
+          .limit(100);
+
+        if (!pool || pool.length === 0) {
+          setMovies(null);
+          return;
+        }
+
+        const byEloDist = pool
+          .map(rowToMovie)
+          .sort(
+            (a, b) =>
+              Math.abs(a.elo - movieA.elo) - Math.abs(b.elo - movieA.elo),
+          );
+
+        // Pick randomly from the 5 closest to add variety and avoid repeating the same pair
+        movieB =
+          byEloDist[Math.floor(Math.random() * Math.min(5, byEloDist.length))];
+      }
+
+      const pair: [Movie, Movie] =
+        Math.random() > 0.5 ? [movieA, movieB] : [movieB, movieA];
       setMovies(pair);
       moviesRef.current = pair;
       resetAnimations();
