@@ -174,6 +174,27 @@ New ELO_A = ELO_A + K * (result - Expected A)
 
 ---
 
+## Streaming Data Refresh Strategy
+
+**Current approach: GitHub Actions weekly cron**
+
+- Watch provider data stored in `watch_providers` JSONB column on `movies` table (US region only)
+- Also stored in `original_language`, `top_cast`, `director` columns for filtering
+- Initial population: `node scripts/enrichMovieData.js`
+- Weekly refresh: `.github/workflows/refresh-movie-data.yml` every Monday 6am UTC
+- Can be triggered manually: GitHub → Actions → "Refresh Movie Data" → Run workflow
+- Also refreshes per-movie automatically when any user opens that movie's detail page
+
+**Upgrade triggers:**
+| Condition | Action |
+|---|---|
+| International users needed | Expand `watch_providers` to store per-country data. Update enrichment script to fetch multiple regions. |
+| GitHub Actions becomes unreliable | Move to Supabase Edge Functions + pg_cron (requires Supabase Pro plan) |
+| Need fresher than weekly data | Change cron to daily, or add staleness check (refresh if `watch_providers` last updated >7 days ago) |
+| >10,000 users | Move to a dedicated background job service (Railway, Render) with proper queuing |
+
+---
+
 ## Predicted ELO Model
 
 ### Purpose
