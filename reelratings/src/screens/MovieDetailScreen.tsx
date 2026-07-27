@@ -197,38 +197,6 @@ export default function MovieDetailScreen() {
     }
   };
 
-  const handleRemoveFromLibrary = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user || !id) return;
-
-    Alert.alert(
-      "Remove from Library",
-      "This will permanently delete this movie and all its match history from your library. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            setStatusUpdating(true);
-            try {
-              await supabase
-                .from("user_movies")
-                .delete()
-                .eq("user_id", user.id)
-                .eq("movie_id", id);
-              router.back();
-            } finally {
-              setStatusUpdating(false);
-            }
-          },
-        },
-      ],
-    );
-  };
-
   const handleRateNow = async () => {
     const {
       data: { user },
@@ -405,20 +373,6 @@ export default function MovieDetailScreen() {
             ))}
           </View>
         </View>
-
-        {/* Remove from Library */}
-        {userMovie && (
-          <TouchableOpacity
-            style={[
-              styles.removeButton,
-              statusUpdating && styles.rateButtonDisabled,
-            ]}
-            onPress={handleRemoveFromLibrary}
-            disabled={statusUpdating}
-          >
-            <Text style={styles.removeButtonText}>Remove from Library</Text>
-          </TouchableOpacity>
-        )}
 
         {/* Streaming / Where to Watch */}
         {watchProviders.flatrate?.length ||
@@ -745,19 +699,6 @@ const styles = StyleSheet.create({
     color: "#333333",
     fontSize: 10,
     marginTop: 8,
-  },
-  removeButton: {
-    borderWidth: 1,
-    borderColor: "#3a1a1a",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  removeButtonText: {
-    color: "#f44336",
-    fontSize: 14,
-    fontWeight: "600",
   },
   errorText: {
     color: "#666666",
