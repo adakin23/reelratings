@@ -1,7 +1,7 @@
 name: Refresh Movie Data
 
 # Runs every Monday at 6:00am UTC.
-# Can also be triggered manually: GitHub → Actions → "Refresh Movie Data" → Run workflow.
+# Can also be triggered manually: GitHub > Actions > "Refresh Movie Data" > Run workflow.
 
 on:
   schedule:
