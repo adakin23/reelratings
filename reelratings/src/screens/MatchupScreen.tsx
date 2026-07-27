@@ -369,6 +369,22 @@ export default function MatchupScreen() {
         winner_id: winnerId,
         elo_change: eloChange,
       }),
+
+      // Snapshot ELO after this matchup for the trend chart
+      supabase.from("user_elo_history").insert([
+        {
+          user_id: uid,
+          movie_id: winnerId,
+          elo: newWinnerElo,
+          matchup_count: (wd?.matchup_count ?? 0) + 1,
+        },
+        {
+          user_id: uid,
+          movie_id: loserId,
+          elo: newLoserElo,
+          matchup_count: (ld?.matchup_count ?? 0) + 1,
+        },
+      ]),
     ]);
 
     await loadNextPair(uid);

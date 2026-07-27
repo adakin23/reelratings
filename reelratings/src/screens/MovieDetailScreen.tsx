@@ -309,7 +309,15 @@ export default function MovieDetailScreen() {
         {/* Ratings */}
         <View style={styles.ratingsRow}>
           {userMovie && userMovie.matchup_count > 0 && (
-            <View style={styles.ratingBox}>
+            <TouchableOpacity
+              style={styles.ratingBox}
+              onPress={() =>
+                router.push({
+                  pathname: `/movie-history/${id}`,
+                  params: { title: movie?.title },
+                })
+              }
+            >
               <Text style={styles.ratingScore}>
                 {userMovie.normalizedScore}
               </Text>
@@ -317,7 +325,8 @@ export default function MovieDetailScreen() {
               <Text style={styles.ratingRecord}>
                 {userMovie.win_count}W · {userMovie.loss_count}L
               </Text>
-            </View>
+              <Text style={styles.ratingTap}>Tap for history</Text>
+            </TouchableOpacity>
           )}
           {globalScore !== null && (
             <View style={styles.ratingBox}>
@@ -572,6 +581,11 @@ const styles = StyleSheet.create({
     color: "#555555",
     fontSize: 11,
     marginTop: 4,
+  },
+  ratingTap: {
+    color: "#333333",
+    fontSize: 10,
+    marginTop: 6,
   },
   noRatingText: {
     color: "#555555",
