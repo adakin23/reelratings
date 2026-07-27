@@ -1,49 +1,49 @@
-import { Tabs } from 'expo-router'
+import { Tabs } from "expo-router";
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: '#0d0d0d',
-          borderTopColor: '#222222',
+          backgroundColor: "#0d0d0d",
+          borderTopColor: "#222222",
         },
-        tabBarActiveTintColor: '#ffffff',
-        tabBarInactiveTintColor: '#666666',
+        tabBarActiveTintColor: "#ffffff",
+        tabBarInactiveTintColor: "#666666",
         headerStyle: {
-          backgroundColor: '#0d0d0d',
+          backgroundColor: "#0d0d0d",
         },
-        headerTintColor: '#ffffff',
+        headerTintColor: "#ffffff",
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Match',
-          headerTitle: 'ReelRatings',
+          title: "Match",
+          headerTitle: "ReelRatings",
         }}
       />
       <Tabs.Screen
         name="rankings"
         options={{
-          title: 'My Rankings',
-          headerTitle: 'My Rankings',
+          title: "My Rankings",
+          headerTitle: "My Rankings",
         }}
       />
       <Tabs.Screen
-        name="global"
+        name="watchlist"
         options={{
-          title: 'Global',
-          headerTitle: 'Global Rankings',
+          title: "Watchlist",
+          headerTitle: "My Watchlist",
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
-          title: 'Search',
-          headerTitle: 'Search',
+          title: "Search",
+          headerTitle: "Search",
         }}
       />
     </Tabs>
-  )
+  );
 }

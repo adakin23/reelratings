@@ -67,7 +67,6 @@ export default function MovieDetailScreen() {
 
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [userMovie, setUserMovie] = useState<UserMovieData | null>(null);
-  const [globalScore, setGlobalScore] = useState<number | null>(null);
   const [watchProviders, setWatchProviders] = useState<WatchProviders>({});
   const [loading, setLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -112,32 +111,6 @@ export default function MovieDetailScreen() {
           status: userMovieData.status as WatchStatus,
           normalizedScore: normalizeElo(userMovieData.elo, minElo, maxElo),
         });
-      }
-
-      const { data: globalData } = await supabase
-        .from("user_movies")
-        .select("elo")
-        .eq("movie_id", movieId)
-        .gt("matchup_count", 0);
-
-      if (globalData && globalData.length > 0) {
-        const avgElo =
-          globalData.reduce((sum, r) => sum + r.elo, 0) / globalData.length;
-        const { data: allGlobal } = await supabase
-          .from("user_movies")
-          .select("elo")
-          .gt("matchup_count", 0);
-
-        if (allGlobal && allGlobal.length > 0) {
-          const globalElos = allGlobal.map((m) => m.elo);
-          setGlobalScore(
-            normalizeElo(
-              avgElo,
-              Math.min(...globalElos),
-              Math.max(...globalElos),
-            ),
-          );
-        }
       }
     } finally {
       setLoading(false);
@@ -327,18 +300,11 @@ export default function MovieDetailScreen() {
               </Text>
             </TouchableOpacity>
           )}
-          {globalScore !== null && (
-            <View style={styles.ratingBox}>
-              <Text style={styles.ratingScore}>{globalScore}</Text>
-              <Text style={styles.ratingLabel}>Global Rating</Text>
-            </View>
+          {(!userMovie || userMovie.matchup_count === 0) && (
+            <Text style={styles.noRatingText}>
+              No ratings yet — start swiping!
+            </Text>
           )}
-          {(!userMovie || userMovie.matchup_count === 0) &&
-            globalScore === null && (
-              <Text style={styles.noRatingText}>
-                No ratings yet — start swiping!
-              </Text>
-            )}
         </View>
 
         {/* Rate Now button */}
