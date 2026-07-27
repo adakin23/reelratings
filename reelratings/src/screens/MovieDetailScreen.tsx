@@ -12,7 +12,12 @@ import {
 } from "react-native";
 import { normalizeElo } from "../lib/elo";
 import { supabase } from "../lib/supabase";
-import { getMovieDetails, getPosterUrl } from "../lib/tmdb";
+import {
+  getMovieDetails,
+  getPosterUrl,
+  getWatchProviders,
+  WatchProviders,
+} from "../lib/tmdb";
 
 type WatchStatus = "watched" | "watchlist" | "do_not_watch" | null;
 
@@ -63,6 +68,7 @@ export default function MovieDetailScreen() {
   const [movie, setMovie] = useState<MovieDetail | null>(null);
   const [userMovie, setUserMovie] = useState<UserMovieData | null>(null);
   const [globalScore, setGlobalScore] = useState<number | null>(null);
+  const [watchProviders, setWatchProviders] = useState<WatchProviders>({});
   const [loading, setLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState(false);
 
@@ -73,8 +79,12 @@ export default function MovieDetailScreen() {
   const loadMovie = async (movieId: string) => {
     setLoading(true);
     try {
-      const details = await getMovieDetails(Number(movieId));
+      const [details, providers] = await Promise.all([
+        getMovieDetails(Number(movieId)),
+        getWatchProviders(Number(movieId)),
+      ]);
       setMovie(details);
+      setWatchProviders(providers);
 
       const {
         data: { user },
@@ -410,6 +420,84 @@ export default function MovieDetailScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Streaming / Where to Watch */}
+        {watchProviders.flatrate?.length ||
+        watchProviders.rent?.length ||
+        watchProviders.buy?.length ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Where to Watch</Text>
+            {watchProviders.flatrate?.length ? (
+              <View style={styles.providerGroup}>
+                <Text style={styles.providerGroupLabel}>Stream</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.providerRow}>
+                    {watchProviders.flatrate.map((p) => (
+                      <View key={p.provider_id} style={styles.providerItem}>
+                        <Image
+                          source={{
+                            uri: `https://image.tmdb.org/t/p/w92${p.logo_path}`,
+                          }}
+                          style={styles.providerLogo}
+                        />
+                        <Text style={styles.providerName} numberOfLines={2}>
+                          {p.provider_name}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            ) : null}
+            {watchProviders.rent?.length ? (
+              <View style={styles.providerGroup}>
+                <Text style={styles.providerGroupLabel}>Rent</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.providerRow}>
+                    {watchProviders.rent.map((p) => (
+                      <View key={p.provider_id} style={styles.providerItem}>
+                        <Image
+                          source={{
+                            uri: `https://image.tmdb.org/t/p/w92${p.logo_path}`,
+                          }}
+                          style={styles.providerLogo}
+                        />
+                        <Text style={styles.providerName} numberOfLines={2}>
+                          {p.provider_name}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            ) : null}
+            {watchProviders.buy?.length ? (
+              <View style={styles.providerGroup}>
+                <Text style={styles.providerGroupLabel}>Buy</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.providerRow}>
+                    {watchProviders.buy.map((p) => (
+                      <View key={p.provider_id} style={styles.providerItem}>
+                        <Image
+                          source={{
+                            uri: `https://image.tmdb.org/t/p/w92${p.logo_path}`,
+                          }}
+                          style={styles.providerLogo}
+                        />
+                        <Text style={styles.providerName} numberOfLines={2}>
+                          {p.provider_name}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            ) : null}
+            <Text style={styles.providerAttribution}>
+              Streaming data provided by JustWatch
+            </Text>
+          </View>
+        ) : null}
+
         {/* Overview */}
         {movie.overview ? (
           <View style={styles.section}>
@@ -622,6 +710,41 @@ const styles = StyleSheet.create({
     color: "#666666",
     fontSize: 12,
     marginTop: 2,
+  },
+  providerGroup: {
+    marginBottom: 12,
+  },
+  providerGroupLabel: {
+    color: "#888888",
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  providerRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  providerItem: {
+    alignItems: "center",
+    width: 56,
+  },
+  providerLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  providerName: {
+    color: "#666666",
+    fontSize: 10,
+    textAlign: "center",
+  },
+  providerAttribution: {
+    color: "#333333",
+    fontSize: 10,
+    marginTop: 8,
   },
   removeButton: {
     borderWidth: 1,
