@@ -1,0 +1,32 @@
+name: Refresh Movie Data
+
+# Runs every Monday at 6:00am UTC.
+# Can also be triggered manually: GitHub → Actions → "Refresh Movie Data" → Run workflow.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install script dependencies
+        run: npm install dotenv @supabase/supabase-js
+
+      - name: Run enrichment script
+        run: node scripts/enrichMovieData.js
+        env:
+          EXPO_PUBLIC_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -85,6 +85,15 @@ export default function MovieDetailScreen() {
       setMovie(details);
       setWatchProviders(providers);
 
+      // Save providers to DB so streaming filter stays fresh without needing the enrichment script
+      if (providers && Object.keys(providers).length > 0) {
+        supabase
+          .from("movies")
+          .update({ watch_providers: providers })
+          .eq("id", movieId);
+        // Fire-and-forget — don't block the UI on this
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
