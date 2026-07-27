@@ -1,13 +1,13 @@
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { supabase } from "../lib/supabase";
 
@@ -47,7 +47,10 @@ export default function UsernameSetupScreen({ onComplete }: Props) {
 
       const { error: insertError } = await supabase
         .from("profiles")
-        .insert({ id: user.id, username: username.toLowerCase() });
+        .upsert(
+          { id: user.id, username: username.toLowerCase() },
+          { onConflict: "id" },
+        );
 
       if (insertError) {
         if (insertError.code === "23505") {
