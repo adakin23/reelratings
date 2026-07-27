@@ -1,237 +1,299 @@
-import { useEffect, useState } from 'react'
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
-} from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
-import { supabase } from '../lib/supabase'
-import { getMovieDetails, getPosterUrl } from '../lib/tmdb'
-import { normalizeElo } from '../lib/elo'
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { normalizeElo } from "../lib/elo";
+import { supabase } from "../lib/supabase";
+import { getMovieDetails, getPosterUrl } from "../lib/tmdb";
 
-type WatchStatus = 'watched' | 'watchlist' | 'do_not_watch' | null
+type WatchStatus = "watched" | "watchlist" | "do_not_watch" | null;
 
 interface MovieDetail {
-  id: number
-  title: string
-  poster_path: string | null
-  release_date: string
-  runtime: number
-  overview: string
-  genres: { id: number; name: string }[]
+  id: number;
+  title: string;
+  poster_path: string | null;
+  release_date: string;
+  runtime: number;
+  overview: string;
+  genres: { id: number; name: string }[];
   credits: {
-    cast: { id: number; name: string; character: string; profile_path: string | null }[]
-    crew: { id: number; name: string; job: string }[]
-  }
+    cast: {
+      id: number;
+      name: string;
+      character: string;
+      profile_path: string | null;
+    }[];
+    crew: { id: number; name: string; job: string }[];
+  };
 }
 
 interface UserMovieData {
-  elo: number
-  matchup_count: number
-  win_count: number
-  loss_count: number
-  status: WatchStatus
-  normalizedScore: number
+  elo: number;
+  matchup_count: number;
+  win_count: number;
+  loss_count: number;
+  status: WatchStatus;
+  normalizedScore: number;
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  watched: 'Watched',
-  watchlist: 'Watchlist',
+  watched: "Watched",
+  watchlist: "Watchlist",
   do_not_watch: "Don't Want to Watch",
-}
+};
 
 const STATUS_COLORS: Record<string, string> = {
-  watched: '#4caf50',
-  watchlist: '#2196f3',
-  do_not_watch: '#f44336',
-}
+  watched: "#4caf50",
+  watchlist: "#2196f3",
+  do_not_watch: "#f44336",
+};
 
 export default function MovieDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>()
-  const router = useRouter()
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
 
-  const [movie, setMovie] = useState<MovieDetail | null>(null)
-  const [userMovie, setUserMovie] = useState<UserMovieData | null>(null)
-  const [globalScore, setGlobalScore] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [statusUpdating, setStatusUpdating] = useState(false)
+  const [movie, setMovie] = useState<MovieDetail | null>(null);
+  const [userMovie, setUserMovie] = useState<UserMovieData | null>(null);
+  const [globalScore, setGlobalScore] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   useEffect(() => {
-    if (id) loadMovie(id)
-  }, [id])
+    if (id) loadMovie(id);
+  }, [id]);
 
   const loadMovie = async (movieId: string) => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const details = await getMovieDetails(Number(movieId))
-      setMovie(details)
+      const details = await getMovieDetails(Number(movieId));
+      setMovie(details);
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
       const { data: userMovieData } = await supabase
-        .from('user_movies')
-        .select('elo, matchup_count, win_count, loss_count, status')
-        .eq('user_id', user.id)
-        .eq('movie_id', movieId)
-        .single()
+        .from("user_movies")
+        .select("elo, matchup_count, win_count, loss_count, status")
+        .eq("user_id", user.id)
+        .eq("movie_id", movieId)
+        .single();
 
       const { data: allUserMovies } = await supabase
-        .from('user_movies')
-        .select('elo')
-        .eq('user_id', user.id)
+        .from("user_movies")
+        .select("elo")
+        .eq("user_id", user.id);
 
       if (userMovieData && allUserMovies) {
-        const elos = allUserMovies.map(m => m.elo)
-        const minElo = Math.min(...elos)
-        const maxElo = Math.max(...elos)
+        const elos = allUserMovies.map((m) => m.elo);
+        const minElo = Math.min(...elos);
+        const maxElo = Math.max(...elos);
         setUserMovie({
           ...userMovieData,
           status: userMovieData.status as WatchStatus,
           normalizedScore: normalizeElo(userMovieData.elo, minElo, maxElo),
-        })
+        });
       }
 
       const { data: globalData } = await supabase
-        .from('user_movies')
-        .select('elo')
-        .eq('movie_id', movieId)
-        .gt('matchup_count', 0)
+        .from("user_movies")
+        .select("elo")
+        .eq("movie_id", movieId)
+        .gt("matchup_count", 0);
 
       if (globalData && globalData.length > 0) {
-        const avgElo = globalData.reduce((sum, r) => sum + r.elo, 0) / globalData.length
+        const avgElo =
+          globalData.reduce((sum, r) => sum + r.elo, 0) / globalData.length;
         const { data: allGlobal } = await supabase
-          .from('user_movies')
-          .select('elo')
-          .gt('matchup_count', 0)
+          .from("user_movies")
+          .select("elo")
+          .gt("matchup_count", 0);
 
         if (allGlobal && allGlobal.length > 0) {
-          const globalElos = allGlobal.map(m => m.elo)
-          setGlobalScore(normalizeElo(avgElo, Math.min(...globalElos), Math.max(...globalElos)))
+          const globalElos = allGlobal.map((m) => m.elo);
+          setGlobalScore(
+            normalizeElo(
+              avgElo,
+              Math.min(...globalElos),
+              Math.max(...globalElos),
+            ),
+          );
         }
       }
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const updateStatus = async (newStatus: 'watched' | 'watchlist' | 'do_not_watch') => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !id) return
+  const updateStatus = async (
+    newStatus: "watched" | "watchlist" | "do_not_watch",
+  ) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user || !id) return;
 
-    setStatusUpdating(true)
+    setStatusUpdating(true);
     try {
       const { data: existing } = await supabase
-        .from('user_movies')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('movie_id', id)
-        .single()
+        .from("user_movies")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("movie_id", id)
+        .single();
 
       if (existing) {
         await supabase
-          .from('user_movies')
+          .from("user_movies")
           .update({ status: newStatus })
-          .eq('user_id', user.id)
-          .eq('movie_id', id)
+          .eq("user_id", user.id)
+          .eq("movie_id", id);
       } else {
         if (movie) {
-          await supabase.from('movies').upsert(
+          await supabase.from("movies").upsert(
             {
               id,
               title: movie.title,
               poster_path: movie.poster_path,
               release_date: movie.release_date || null,
               overview: movie.overview,
-              genres: movie.genres.map(g => g.name),
+              genres: movie.genres.map((g) => g.name),
               runtime: movie.runtime,
             },
-            { onConflict: 'id' }
-          )
+            { onConflict: "id" },
+          );
         }
-        await supabase.from('user_movies').insert({
+        await supabase.from("user_movies").insert({
           user_id: user.id,
           movie_id: id,
           elo: 1000,
           status: newStatus,
-        })
+        });
       }
 
-      setUserMovie(prev => prev ? { ...prev, status: newStatus } : null)
-      Alert.alert('Updated', `Marked as ${STATUS_LABELS[newStatus]}`)
+      setUserMovie((prev) => (prev ? { ...prev, status: newStatus } : null));
+      Alert.alert("Updated", `Marked as ${STATUS_LABELS[newStatus]}`);
     } finally {
-      setStatusUpdating(false)
+      setStatusUpdating(false);
     }
-  }
+  };
+
+  const handleRemoveFromLibrary = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user || !id) return;
+
+    Alert.alert(
+      "Remove from Library",
+      "This will permanently delete this movie and all its match history from your library. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            setStatusUpdating(true);
+            try {
+              await supabase
+                .from("user_movies")
+                .delete()
+                .eq("user_id", user.id)
+                .eq("movie_id", id);
+              router.back();
+            } finally {
+              setStatusUpdating(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const handleRateNow = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !id || !movie) return
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user || !id || !movie) return;
 
-    setStatusUpdating(true)
+    setStatusUpdating(true);
     try {
       // Ensure movie exists in movies table
-      await supabase.from('movies').upsert(
+      await supabase.from("movies").upsert(
         {
           id,
           title: movie.title,
           poster_path: movie.poster_path,
           release_date: movie.release_date || null,
           overview: movie.overview,
-          genres: movie.genres?.map(g => g.name) ?? [],
+          genres: movie.genres?.map((g) => g.name) ?? [],
           runtime: movie.runtime ?? null,
         },
-        { onConflict: 'id' }
-      )
+        { onConflict: "id" },
+      );
 
       // Ensure user has this movie in their library as 'watched'
       const { data: existing } = await supabase
-        .from('user_movies')
-        .select('id, status')
-        .eq('user_id', user.id)
-        .eq('movie_id', id)
-        .single()
+        .from("user_movies")
+        .select("id, status")
+        .eq("user_id", user.id)
+        .eq("movie_id", id)
+        .single();
 
       if (!existing) {
-        await supabase.from('user_movies').insert({
+        await supabase.from("user_movies").insert({
           user_id: user.id,
           movie_id: id,
           elo: 1000,
-          status: 'watched',
-        })
-        setUserMovie(prev => prev
-          ? { ...prev, status: 'watched' }
-          : { elo: 1000, matchup_count: 0, win_count: 0, loss_count: 0, status: 'watched', normalizedScore: 50 }
-        )
-      } else if (existing.status !== 'watched') {
-        await supabase.from('user_movies')
-          .update({ status: 'watched' })
-          .eq('user_id', user.id)
-          .eq('movie_id', id)
-        setUserMovie(prev => prev ? { ...prev, status: 'watched' } : null)
+          status: "watched",
+        });
+        setUserMovie((prev) =>
+          prev
+            ? { ...prev, status: "watched" }
+            : {
+                elo: 1000,
+                matchup_count: 0,
+                win_count: 0,
+                loss_count: 0,
+                status: "watched",
+                normalizedScore: 50,
+              },
+        );
+      } else if (existing.status !== "watched") {
+        await supabase
+          .from("user_movies")
+          .update({ status: "watched" })
+          .eq("user_id", user.id)
+          .eq("movie_id", id);
+        setUserMovie((prev) => (prev ? { ...prev, status: "watched" } : null));
       }
 
       // Navigate to match tab in focus mode
-      router.push({ pathname: '/(tabs)/', params: { focusMovieId: id } })
+      router.push({ pathname: "/(tabs)/", params: { focusMovieId: id } });
     } finally {
-      setStatusUpdating(false)
+      setStatusUpdating(false);
     }
-  }
+  };
 
-  const directors = movie?.credits?.crew?.filter(c => c.job === 'Director') ?? []
-  const topCast = movie?.credits?.cast?.slice(0, 10) ?? []
+  const directors =
+    movie?.credits?.crew?.filter((c) => c.job === "Director") ?? [];
+  const topCast = movie?.credits?.cast?.slice(0, 10) ?? [];
 
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color="#ffffff" />
       </View>
-    )
+    );
   }
 
   if (!movie) {
@@ -239,7 +301,7 @@ export default function MovieDetailScreen() {
       <View style={[styles.container, styles.centered]}>
         <Text style={styles.errorText}>Movie not found.</Text>
       </View>
-    )
+    );
   }
 
   return (
@@ -260,15 +322,19 @@ export default function MovieDetailScreen() {
         <Text style={styles.title}>{movie.title}</Text>
         <Text style={styles.meta}>
           {movie.release_date?.slice(0, 4)}
-          {movie.runtime ? `  ·  ${movie.runtime} min` : ''}
-          {movie.genres?.length > 0 ? `  ·  ${movie.genres.map(g => g.name).join(', ')}` : ''}
+          {movie.runtime ? `  ·  ${movie.runtime} min` : ""}
+          {movie.genres?.length > 0
+            ? `  ·  ${movie.genres.map((g) => g.name).join(", ")}`
+            : ""}
         </Text>
 
         {/* Ratings */}
         <View style={styles.ratingsRow}>
           {userMovie && userMovie.matchup_count > 0 && (
             <View style={styles.ratingBox}>
-              <Text style={styles.ratingScore}>{userMovie.normalizedScore}</Text>
+              <Text style={styles.ratingScore}>
+                {userMovie.normalizedScore}
+              </Text>
               <Text style={styles.ratingLabel}>Your Rating</Text>
               <Text style={styles.ratingRecord}>
                 {userMovie.win_count}W · {userMovie.loss_count}L
@@ -281,14 +347,20 @@ export default function MovieDetailScreen() {
               <Text style={styles.ratingLabel}>Global Rating</Text>
             </View>
           )}
-          {(!userMovie || userMovie.matchup_count === 0) && globalScore === null && (
-            <Text style={styles.noRatingText}>No ratings yet — start swiping!</Text>
-          )}
+          {(!userMovie || userMovie.matchup_count === 0) &&
+            globalScore === null && (
+              <Text style={styles.noRatingText}>
+                No ratings yet — start swiping!
+              </Text>
+            )}
         </View>
 
         {/* Rate Now button */}
         <TouchableOpacity
-          style={[styles.rateButton, statusUpdating && styles.rateButtonDisabled]}
+          style={[
+            styles.rateButton,
+            statusUpdating && styles.rateButtonDisabled,
+          ]}
           onPress={handleRateNow}
           disabled={statusUpdating}
         >
@@ -299,12 +371,14 @@ export default function MovieDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Status</Text>
           <View style={styles.statusRow}>
-            {(['watched', 'watchlist', 'do_not_watch'] as const).map(s => (
+            {(["watched", "watchlist", "do_not_watch"] as const).map((s) => (
               <TouchableOpacity
                 key={s}
                 style={[
                   styles.statusButton,
-                  userMovie?.status === s && { backgroundColor: STATUS_COLORS[s] },
+                  userMovie?.status === s && {
+                    backgroundColor: STATUS_COLORS[s],
+                  },
                 ]}
                 onPress={() => updateStatus(s)}
                 disabled={statusUpdating}
@@ -322,6 +396,20 @@ export default function MovieDetailScreen() {
           </View>
         </View>
 
+        {/* Remove from Library */}
+        {userMovie && (
+          <TouchableOpacity
+            style={[
+              styles.removeButton,
+              statusUpdating && styles.rateButtonDisabled,
+            ]}
+            onPress={handleRemoveFromLibrary}
+            disabled={statusUpdating}
+          >
+            <Text style={styles.removeButtonText}>Remove from Library</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Overview */}
         {movie.overview ? (
           <View style={styles.section}>
@@ -334,11 +422,14 @@ export default function MovieDetailScreen() {
         {directors.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              {directors.length === 1 ? 'Director' : 'Directors'}
+              {directors.length === 1 ? "Director" : "Directors"}
             </Text>
             <View style={styles.directorRow}>
-              {directors.map(d => (
-                <TouchableOpacity key={d.id} onPress={() => router.push(`/person/${d.id}`)}>
+              {directors.map((d) => (
+                <TouchableOpacity
+                  key={d.id}
+                  onPress={() => router.push(`/person/${d.id}`)}
+                >
                   <Text style={styles.directorName}>{d.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -350,7 +441,7 @@ export default function MovieDetailScreen() {
         {topCast.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Cast</Text>
-            {topCast.map(actor => (
+            {topCast.map((actor) => (
               <TouchableOpacity
                 key={actor.id}
                 style={styles.castRow}
@@ -358,7 +449,9 @@ export default function MovieDetailScreen() {
               >
                 {actor.profile_path ? (
                   <Image
-                    source={{ uri: `https://image.tmdb.org/t/p/w92${actor.profile_path}` }}
+                    source={{
+                      uri: `https://image.tmdb.org/t/p/w92${actor.profile_path}`,
+                    }}
                     style={styles.castPhoto}
                   />
                 ) : (
@@ -374,124 +467,124 @@ export default function MovieDetailScreen() {
         )}
       </View>
     </ScrollView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0d0d0d',
+    backgroundColor: "#0d0d0d",
   },
   centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   poster: {
-    width: '100%',
+    width: "100%",
     height: 400,
   },
   noPoster: {
-    width: '100%',
+    width: "100%",
     height: 400,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: "#1a1a1a",
   },
   content: {
     padding: 20,
   },
   title: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 6,
   },
   meta: {
-    color: '#888888',
+    color: "#888888",
     fontSize: 13,
     marginBottom: 20,
   },
   ratingsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 16,
   },
   ratingBox: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: "#1a1a1a",
     borderRadius: 10,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     minWidth: 100,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: "#2a2a2a",
   },
   ratingScore: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   ratingLabel: {
-    color: '#888888',
+    color: "#888888",
     fontSize: 12,
     marginTop: 4,
   },
   ratingRecord: {
-    color: '#555555',
+    color: "#555555",
     fontSize: 11,
     marginTop: 4,
   },
   noRatingText: {
-    color: '#555555',
+    color: "#555555",
     fontSize: 13,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   rateButton: {
-    backgroundColor: '#1a2a1a',
+    backgroundColor: "#1a2a1a",
     borderWidth: 1,
-    borderColor: '#2a4a2a',
+    borderColor: "#2a4a2a",
     borderRadius: 10,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   rateButtonDisabled: {
     opacity: 0.5,
   },
   rateButtonText: {
-    color: '#6fcf6f',
+    color: "#6fcf6f",
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 10,
   },
   statusRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   statusButton: {
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: "#1a1a1a",
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: "#2a2a2a",
   },
   statusButtonText: {
-    color: '#888888',
+    color: "#888888",
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statusButtonTextActive: {
-    color: '#ffffff',
+    color: "#ffffff",
   },
   overview: {
-    color: '#aaaaaa',
+    color: "#aaaaaa",
     fontSize: 14,
     lineHeight: 22,
   },
@@ -499,13 +592,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   directorName: {
-    color: '#4a9eff',
+    color: "#4a9eff",
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   castRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 12,
   },
   castPhoto: {
@@ -515,23 +608,36 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   noPhoto: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: "#1a1a1a",
   },
   castInfo: {
     flex: 1,
   },
   castName: {
-    color: '#4a9eff',
+    color: "#4a9eff",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   castCharacter: {
-    color: '#666666',
+    color: "#666666",
     fontSize: 12,
     marginTop: 2,
   },
+  removeButton: {
+    borderWidth: 1,
+    borderColor: "#3a1a1a",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  removeButtonText: {
+    color: "#f44336",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   errorText: {
-    color: '#666666',
+    color: "#666666",
     fontSize: 16,
   },
-})
+});
