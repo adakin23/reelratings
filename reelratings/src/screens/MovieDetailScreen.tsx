@@ -325,7 +325,6 @@ export default function MovieDetailScreen() {
               <Text style={styles.ratingRecord}>
                 {userMovie.win_count}W · {userMovie.loss_count}L
               </Text>
-              <Text style={styles.ratingTap}>Tap for history</Text>
             </TouchableOpacity>
           )}
           {globalScore !== null && (
@@ -581,11 +580,6 @@ const styles = StyleSheet.create({
     color: "#555555",
     fontSize: 11,
     marginTop: 4,
-  },
-  ratingTap: {
-    color: "#333333",
-    fontSize: 10,
-    marginTop: 6,
   },
   noRatingText: {
     color: "#555555",
