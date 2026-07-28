@@ -45,6 +45,7 @@ function applyFiltersAndSort(
   search: string,
   filters: FilterState,
   sort: string,
+  sharedUserMovieIds: Map<string, string[]>,
 ): WatchlistMovie[] {
   let result = movies;
 
@@ -110,8 +111,15 @@ function applyFiltersAndSort(
     });
   }
 
+  if (filters.sharedWithUsernames.length > 0) {
+    result = result.filter((m) =>
+      filters.sharedWithUsernames.every((username) =>
+        (sharedUserMovieIds.get(username) ?? []).includes(m.movie_id),
+      ),
+    );
+  }
+
   const sorted = [...result];
-  // 'added_desc' is already the natural order from the DB query
   switch (sort) {
     case "year_desc":
       sorted.sort((a, b) =>
@@ -141,6 +149,9 @@ export default function WatchlistScreen() {
   const [sort, setSort] = useState("added_desc");
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [sharedUserMovieIds, setSharedUserMovieIds] = useState<
+    Map<string, string[]>
+  >(new Map());
 
   useFocusEffect(
     useCallback(() => {
@@ -149,8 +160,43 @@ export default function WatchlistScreen() {
   );
 
   useEffect(() => {
-    setDisplayed(applyFiltersAndSort(movies, search, filters, sort));
-  }, [movies, search, filters, sort]);
+    setDisplayed(
+      applyFiltersAndSort(movies, search, filters, sort, sharedUserMovieIds),
+    );
+  }, [movies, search, filters, sort, sharedUserMovieIds]);
+
+  useEffect(() => {
+    if (filters.sharedWithUsernames.length === 0) {
+      setSharedUserMovieIds(new Map());
+      return;
+    }
+    const fetchSharedMovies = async () => {
+      const newMap = new Map<string, string[]>();
+      await Promise.all(
+        filters.sharedWithUsernames.map(async (username) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("username", username)
+            .single();
+          if (!profile) return;
+          const { data: watchlist } = await supabase
+            .from("user_movies")
+            .select("movie_id")
+            .eq("user_id", profile.id)
+            .eq("status", "watchlist");
+          if (watchlist) {
+            newMap.set(
+              username,
+              watchlist.map((w: any) => w.movie_id),
+            );
+          }
+        }),
+      );
+      setSharedUserMovieIds(newMap);
+    };
+    fetchSharedMovies();
+  }, [filters.sharedWithUsernames]);
 
   const loadWatchlist = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -198,7 +244,6 @@ export default function WatchlistScreen() {
     }
   };
 
-  // Derive available filter options from loaded data
   const availableGenres = useMemo(() => {
     const set = new Set<string>();
     movies.forEach((m) =>
@@ -445,7 +490,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  sortContent: { paddingHorizontal: 12, gap: 8 },
   sortChip: {
     paddingHorizontal: 14,
     paddingVertical: 6,

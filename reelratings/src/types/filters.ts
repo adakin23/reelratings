@@ -8,6 +8,7 @@ export interface FilterState {
   actors: string[];
   directors: string[];
   streamingServices: string[];
+  sharedWithUsernames: string[];
 }
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -20,6 +21,7 @@ export const DEFAULT_FILTERS: FilterState = {
   actors: [],
   directors: [],
   streamingServices: [],
+  sharedWithUsernames: [],
 };
 
 export function countActiveFilters(filters: FilterState): number {
@@ -31,6 +33,7 @@ export function countActiveFilters(filters: FilterState): number {
   if (filters.actors.length > 0) count++;
   if (filters.directors.length > 0) count++;
   if (filters.streamingServices.length > 0) count++;
+  if (filters.sharedWithUsernames.length > 0) count++;
   return count;
 }
 

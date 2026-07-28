@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-    Modal,
-    ReactNode,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Modal,
+  ReactNode,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { supabase } from "../lib/supabase";
 import { FilterState, LANGUAGE_NAMES } from "../types/filters";
 import RangeSlider from "./RangeSlider";
 
@@ -39,6 +40,32 @@ export default function FilterModal({
 }: Props) {
   const [actorSearch, setActorSearch] = useState("");
   const [directorSearch, setDirectorSearch] = useState("");
+  const [usernameSearch, setUsernameSearch] = useState("");
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (usernameSearch.trim().length < 2) {
+      setUsernameSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("username")
+        .ilike("username", `${usernameSearch}%`)
+        .limit(8);
+      if (data) {
+        setUsernameSuggestions(
+          data
+            .map((p: any) => p.username)
+            .filter(
+              (u: string) => u && !filters.sharedWithUsernames.includes(u),
+            ),
+        );
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [usernameSearch, filters.sharedWithUsernames]);
 
   const update = (changes: Partial<FilterState>) =>
     onFiltersChange({ ...filters, ...changes });
@@ -66,6 +93,8 @@ export default function FilterModal({
     });
     setActorSearch("");
     setDirectorSearch("");
+    setUsernameSearch("");
+    setUsernameSuggestions([]);
   };
 
   const actorSuggestions =
@@ -265,6 +294,48 @@ export default function FilterModal({
               )}
             </Section>
 
+            {/* Friends' Watchlists */}
+            <Section title="Friends' Watchlists">
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by username..."
+                placeholderTextColor="#555"
+                value={usernameSearch}
+                onChangeText={setUsernameSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {usernameSuggestions.map((u) => (
+                <TouchableOpacity
+                  key={u}
+                  style={styles.suggestion}
+                  onPress={() => {
+                    update({
+                      sharedWithUsernames: [...filters.sharedWithUsernames, u],
+                    });
+                    setUsernameSearch("");
+                    setUsernameSuggestions([]);
+                  }}
+                >
+                  <Text style={styles.suggestionText}>@{u}</Text>
+                </TouchableOpacity>
+              ))}
+              {filters.sharedWithUsernames.length > 0 && (
+                <SelectedChips
+                  items={filters.sharedWithUsernames.map((u) => `@${u}`)}
+                  onRemove={(u) =>
+                    toggleChip("sharedWithUsernames", u.replace("@", ""))
+                  }
+                />
+              )}
+              {filters.sharedWithUsernames.length > 1 && (
+                <Text style={styles.andNote}>
+                  Showing movies on all {filters.sharedWithUsernames.length + 1}{" "}
+                  watchlists
+                </Text>
+              )}
+            </Section>
+
             <View style={{ height: 40 }} />
           </ScrollView>
         </View>
@@ -446,4 +517,10 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1a1a1a",
   },
   suggestionText: { color: "#ffffff", fontSize: 14 },
+  andNote: {
+    color: "#555555",
+    fontSize: 12,
+    marginTop: 8,
+    fontStyle: "italic",
+  },
 });
