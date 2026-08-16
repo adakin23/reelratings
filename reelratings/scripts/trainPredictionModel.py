@@ -248,7 +248,7 @@ def process_user(user_id, matchups, user_movies, feature_df_scaled, movie_lookup
     predicted = {}
     for mid in all_ids:
         m = movie_lookup.get(mid, {})
-        tmdb_s = bayesian_tmdb(m.get("vote_average"), m.get("vote_count"), global_mean_tmdb)
+        tmdb_s = bayesian_tmdb_score(m.get("vote_average"), m.get("vote_count"), global_mean_tmdb)
         bt_s = bt_scores.get(mid, tmdb_s)
         predicted[mid] = round(w * bt_s + (1 - w) * tmdb_s, 1)
 
