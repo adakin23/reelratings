@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -15,6 +16,8 @@ import DraggableFlatList, {
   RenderItemParams,
   ScaleDecorator,
 } from "react-native-draggable-flatlist";
+const DEFAULT_FILTERS_KEY = "@reelratings/defaultFilters_watchlist";
+
 import FilterModal from "../components/FilterModal";
 import { supabase } from "../lib/supabase";
 import { getPosterUrl } from "../lib/tmdb";
@@ -166,6 +169,25 @@ export default function WatchlistScreen() {
   const [sharedUserMovieIds, setSharedUserMovieIds] = useState<
     Map<string, string[]>
   >(new Map());
+
+  // Load saved default filters once on mount
+  useEffect(() => {
+    AsyncStorage.getItem(DEFAULT_FILTERS_KEY)
+      .then((saved) => {
+        if (saved) setFilters(JSON.parse(saved));
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSetDefault = () => {
+    AsyncStorage.setItem(DEFAULT_FILTERS_KEY, JSON.stringify(filters)).catch(
+      () => {},
+    );
+  };
+
+  const handleClearDefault = () => {
+    AsyncStorage.removeItem(DEFAULT_FILTERS_KEY).catch(() => {});
+  };
 
   // Custom sort state
   const [customList, setCustomList] = useState<WatchlistMovie[]>([]);
@@ -585,6 +607,8 @@ export default function WatchlistScreen() {
         allActors={allActors}
         allDirectors={allDirectors}
         runtimeBounds={runtimeBounds}
+        onSetDefault={handleSetDefault}
+        onClearDefault={handleClearDefault}
       />
     </View>
   );

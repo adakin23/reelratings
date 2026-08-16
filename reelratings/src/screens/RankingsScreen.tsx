@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -19,6 +20,8 @@ import {
   FilterState,
   countActiveFilters,
 } from "../types/filters";
+
+const DEFAULT_FILTERS_KEY = "@reelratings/defaultFilters_rankings";
 
 interface RankedMovie {
   movie_id: string;
@@ -160,6 +163,15 @@ export default function RankingsScreen() {
   >(new Map());
   const router = useRouter();
 
+  // Load saved default filters once on mount
+  useEffect(() => {
+    AsyncStorage.getItem(DEFAULT_FILTERS_KEY)
+      .then((saved) => {
+        if (saved) setFilters(JSON.parse(saved));
+      })
+      .catch(() => {});
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadRankings();
@@ -258,6 +270,16 @@ export default function RankingsScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSetDefault = () => {
+    AsyncStorage.setItem(DEFAULT_FILTERS_KEY, JSON.stringify(filters)).catch(
+      () => {},
+    );
+  };
+
+  const handleClearDefault = () => {
+    AsyncStorage.removeItem(DEFAULT_FILTERS_KEY).catch(() => {});
   };
 
   const availableGenres = useMemo(() => {
@@ -450,6 +472,8 @@ export default function RankingsScreen() {
         allActors={allActors}
         allDirectors={allDirectors}
         runtimeBounds={runtimeBounds}
+        onSetDefault={handleSetDefault}
+        onClearDefault={handleClearDefault}
       />
     </View>
   );

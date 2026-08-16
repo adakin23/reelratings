@@ -24,6 +24,8 @@ interface Props {
   allActors: string[];
   allDirectors: string[];
   runtimeBounds: { min: number; max: number };
+  onSetDefault?: () => void;
+  onClearDefault?: () => void;
 }
 
 export default function FilterModal({
@@ -37,11 +39,14 @@ export default function FilterModal({
   allActors,
   allDirectors,
   runtimeBounds,
+  onSetDefault,
+  onClearDefault,
 }: Props) {
   const [actorSearch, setActorSearch] = useState("");
   const [directorSearch, setDirectorSearch] = useState("");
   const [usernameSearch, setUsernameSearch] = useState("");
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+  const [defaultSaved, setDefaultSaved] = useState(false);
 
   useEffect(() => {
     if (usernameSearch.trim().length < 2) {
@@ -90,11 +95,20 @@ export default function FilterModal({
       actors: [],
       directors: [],
       streamingServices: [],
+      sharedWithUsernames: [],
     });
     setActorSearch("");
     setDirectorSearch("");
     setUsernameSearch("");
     setUsernameSuggestions([]);
+    // Also remove the saved default so it doesn't re-apply on next open
+    onClearDefault?.();
+  };
+
+  const handleSetDefault = () => {
+    onSetDefault?.();
+    setDefaultSaved(true);
+    setTimeout(() => setDefaultSaved(false), 2000);
   };
 
   const actorSuggestions =
@@ -336,6 +350,26 @@ export default function FilterModal({
               )}
             </Section>
 
+            {/* Set as Default */}
+            <View style={styles.setDefaultRow}>
+              <TouchableOpacity
+                style={[
+                  styles.setDefaultBtn,
+                  defaultSaved && styles.setDefaultBtnSaved,
+                ]}
+                onPress={handleSetDefault}
+                disabled={defaultSaved}
+              >
+                <Text style={styles.setDefaultText}>
+                  {defaultSaved ? "✓ Default Saved" : "Set as Default"}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.setDefaultNote}>
+                These filters will be applied automatically each time you open
+                the app. Clear All to remove.
+              </Text>
+            </View>
+
             <View style={{ height: 40 }} />
           </ScrollView>
         </View>
@@ -522,5 +556,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     fontStyle: "italic",
+  },
+  setDefaultRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    gap: 10,
+  },
+  setDefaultBtn: {
+    backgroundColor: "#e8572a",
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  setDefaultBtnSaved: {
+    backgroundColor: "#2a5c2a",
+  },
+  setDefaultText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  setDefaultNote: {
+    color: "#555555",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
   },
 });
