@@ -3,10 +3,16 @@
  *
  * One-time setup + weekly refresh script (run via GitHub Actions).
  * For each movie in the database, fetches from TMDB:
+ *   - genres
+ *   - runtime
+ *   - overview
  *   - original_language
+ *   - vote_average / vote_count
  *   - top_cast (top 5 billed actors)
  *   - director(s)
- *   - watch_providers (US streaming/rent/buy data)
+ *   - keywords (crowd-sourced content/tone tags)
+ *   - certification (US MPAA rating: G, PG, PG-13, R, etc.)
+ *   - watch_providers (US streaming data)
  *
  * Usage:
  *   node scripts/enrichMovieData.js
@@ -49,10 +55,10 @@ function sleep(ms) {
 
 async function enrichMovie(movieId) {
   try {
-    // One call gets details + credits via append_to_response
+    // One detail call gets everything via append_to_response
     const [detailRes, providerRes] = await Promise.all([
       fetch(
-        `https://api.themoviedb.org/3/movie/${movieId}?api_key=${TMDB_API_KEY}&append_to_response=credits`,
+        `https://api.themoviedb.org/3/movie/${movieId}?api_key=${TMDB_API_KEY}&append_to_response=credits,release_dates,keywords`,
       ),
       fetch(
         `https://api.themoviedb.org/3/movie/${movieId}/watch/providers?api_key=${TMDB_API_KEY}`,
@@ -62,20 +68,41 @@ async function enrichMovie(movieId) {
     const detail = await detailRes.json();
     const providerData = await providerRes.json();
 
-    const topCast = (detail.credits?.cast ?? []).slice(0, 5).map((c) => c.name);
-
+    // Cast & crew
+    const topCast = (detail.credits?.cast ?? [])
+      .slice(0, 10)
+      .map((c) => c.name);
     const directors = (detail.credits?.crew ?? [])
       .filter((c) => c.job === "Director")
       .map((c) => c.name);
 
+    // US MPAA certification (e.g. "PG-13", "R")
+    const usRelease = (detail.release_dates?.results ?? []).find(
+      (r) => r.iso_3166_1 === "US",
+    );
+    const certification =
+      usRelease?.release_dates?.find((r) => r.certification)?.certification ??
+      null;
+
+    // Keywords array — store full objects {id, name} for flexibility
+    const keywords = detail.keywords?.keywords ?? [];
+
+    // Watch providers (US only)
     const watchProviders = providerData.results?.US ?? null;
 
     const { error } = await supabase
       .from("movies")
       .update({
+        genres: detail.genres?.length > 0 ? detail.genres : null,
+        runtime: detail.runtime ?? null,
+        overview: detail.overview ?? null,
         original_language: detail.original_language ?? null,
+        vote_average: detail.vote_average ?? null,
+        vote_count: detail.vote_count ?? null,
         top_cast: topCast.length > 0 ? topCast : null,
         director: directors.length > 0 ? directors : null,
+        keywords: keywords.length > 0 ? keywords : null,
+        certification,
         watch_providers: watchProviders,
       })
       .eq("id", String(movieId));
