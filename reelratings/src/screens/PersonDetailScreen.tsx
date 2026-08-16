@@ -28,14 +28,6 @@ interface RankedCredit extends TMDBPersonCredit {
   inWatchlist: boolean; // movie is on user's watchlist (has predicted score)
 }
 
-function getAffinityColor(score: number): string {
-  if (score >= 70) return "#4caf50";
-  if (score >= 40) return "#8bc34a";
-  if (score >= 30) return "#888888";
-  if (score >= 20) return "#ff9800";
-  return "#e8572a";
-}
-
 export default function PersonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -242,15 +234,8 @@ export default function PersonDetailScreen() {
           {/* Affinity score — only shown when enough data exists */}
           {affinityScore !== null && (
             <View style={styles.affinityRow}>
-              <Text style={styles.affinityLabel}>Affinity</Text>
-              <Text
-                style={[
-                  styles.affinityValue,
-                  { color: getAffinityColor(affinityScore) },
-                ]}
-              >
-                {affinityScore}
-              </Text>
+              <Text style={styles.affinityLabel}>Your Rating</Text>
+              <Text style={styles.affinityValue}>{affinityScore}</Text>
             </View>
           )}
         </View>
@@ -408,6 +393,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   affinityValue: {
+    color: "#ffffff",
     fontSize: 20,
     fontWeight: "bold",
   },
