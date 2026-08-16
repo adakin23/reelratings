@@ -2,7 +2,7 @@ name: Refresh Movie Data
 
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: '0 6 * * 1'
   workflow_dispatch:
 
 jobs:
@@ -15,15 +15,32 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
+
       - name: Install script dependencies
         run: npm install dotenv @supabase/supabase-js
+
       - name: Run enrichment script
         run: node scripts/enrichMovieData.js
         env:
           EXPO_PUBLIC_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install supabase pandas scikit-learn python-dotenv numpy
+
+      - name: Run prediction model training
+        run: python scripts/trainPredictionModel.py
+        env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
