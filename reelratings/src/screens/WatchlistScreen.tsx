@@ -22,6 +22,7 @@ import {
 
 interface WatchlistMovie {
   movie_id: string;
+  predicted_score: number | null;
   title: string;
   poster_path: string | null;
   release_date: string | null;
@@ -35,6 +36,7 @@ interface WatchlistMovie {
 
 const SORT_OPTIONS = [
   { value: "added_desc", label: "Recently Added" },
+  { value: "predicted_desc", label: "Predicted" },
   { value: "year_desc", label: "Newest" },
   { value: "year_asc", label: "Oldest" },
   { value: "title_asc", label: "A–Z" },
@@ -121,6 +123,12 @@ function applyFiltersAndSort(
 
   const sorted = [...result];
   switch (sort) {
+    case "predicted_desc":
+      // Movies with no score go to the bottom
+      sorted.sort(
+        (a, b) => (b.predicted_score ?? -1) - (a.predicted_score ?? -1),
+      );
+      break;
     case "year_desc":
       sorted.sort((a, b) =>
         (b.release_date ?? "").localeCompare(a.release_date ?? ""),
@@ -211,7 +219,7 @@ export default function WatchlistScreen() {
       const { data } = await supabase
         .from("user_movies")
         .select(
-          `movie_id,
+          `movie_id, predicted_score,
           movies(id, title, poster_path, release_date, genres, runtime,
                  original_language, top_cast, director, watch_providers)`,
         )
@@ -225,6 +233,7 @@ export default function WatchlistScreen() {
             const m = row.movies as any;
             return {
               movie_id: row.movie_id,
+              predicted_score: (row as any).predicted_score ?? null,
               title: m.title,
               poster_path: m.poster_path,
               release_date: m.release_date,
@@ -419,6 +428,14 @@ export default function WatchlistScreen() {
                   </Text>
                 ) : null}
               </View>
+              {item.predicted_score !== null && (
+                <View style={styles.scoreBox}>
+                  <Text style={styles.scoreLabel}>PRED</Text>
+                  <Text style={styles.score}>
+                    {Math.round(item.predicted_score)}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -527,4 +544,19 @@ const styles = StyleSheet.create({
   title: { color: "#ffffff", fontSize: 15, fontWeight: "600", marginBottom: 4 },
   year: { color: "#666666", fontSize: 13 },
   separator: { height: 1, backgroundColor: "#1a1a1a", marginLeft: 80 },
+  scoreBox: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: "center",
+    minWidth: 44,
+  },
+  scoreLabel: {
+    color: "#555555",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  score: { color: "#ffffff", fontSize: 16, fontWeight: "bold" },
 });
