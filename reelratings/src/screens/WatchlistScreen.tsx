@@ -5,12 +5,18 @@ import {
   FlatList,
   Image,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import DraggableFlatList, {
+  RenderItemParams,
+  ScaleDecorator,
+} from "react-native-draggable-flatlist";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import FilterModal from "../components/FilterModal";
 import { supabase } from "../lib/supabase";
 import { getPosterUrl } from "../lib/tmdb";
@@ -23,6 +29,7 @@ import {
 interface WatchlistMovie {
   movie_id: string;
   predicted_score: number | null;
+  custom_order: number | null;
   title: string;
   poster_path: string | null;
   release_date: string | null;
@@ -35,11 +42,12 @@ interface WatchlistMovie {
 }
 
 const SORT_OPTIONS = [
+  { value: "predicted_desc", label: "Predicted Rating" },
   { value: "added_desc", label: "Recently Added" },
-  { value: "predicted_desc", label: "Predicted" },
   { value: "year_desc", label: "Newest" },
   { value: "year_asc", label: "Oldest" },
   { value: "title_asc", label: "A–Z" },
+  { value: "custom", label: "Custom" },
 ];
 
 function applyFiltersAndSort(
@@ -121,10 +129,10 @@ function applyFiltersAndSort(
     );
   }
 
+  // Sort — for 'custom' and 'added_desc', input order is already correct
   const sorted = [...result];
   switch (sort) {
     case "predicted_desc":
-      // Movies with no score go to the bottom
       sorted.sort(
         (a, b) => (b.predicted_score ?? -1) - (a.predicted_score ?? -1),
       );
@@ -154,12 +162,17 @@ export default function WatchlistScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("added_desc");
+  const [sort, setSort] = useState("predicted_desc");
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [sharedUserMovieIds, setSharedUserMovieIds] = useState<
     Map<string, string[]>
   >(new Map());
+
+  // Custom sort state
+  const [customList, setCustomList] = useState<WatchlistMovie[]>([]);
+  const [customDirty, setCustomDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -167,11 +180,51 @@ export default function WatchlistScreen() {
     }, []),
   );
 
+  // Initialize customList when entering custom mode or when movies are refreshed
   useEffect(() => {
-    setDisplayed(
-      applyFiltersAndSort(movies, search, filters, sort, sharedUserMovieIds),
-    );
-  }, [movies, search, filters, sort, sharedUserMovieIds]);
+    if (sort === "custom") {
+      const hasAnyOrder = movies.some((m) => m.custom_order !== null);
+      let sorted: WatchlistMovie[];
+
+      if (hasAnyOrder) {
+        // Movies with no custom_order (newly added) float to top; rest by saved order
+        sorted = [...movies].sort((a, b) => {
+          if (a.custom_order === null && b.custom_order === null) return 0;
+          if (a.custom_order === null) return -1;
+          if (b.custom_order === null) return 1;
+          return a.custom_order - b.custom_order;
+        });
+      } else {
+        // First time: seed from predicted rating
+        sorted = [...movies].sort(
+          (a, b) => (b.predicted_score ?? -1) - (a.predicted_score ?? -1),
+        );
+      }
+
+      setCustomList(sorted);
+      setCustomDirty(false);
+    }
+  }, [sort, movies]);
+
+  // Update displayed list
+  useEffect(() => {
+    if (sort === "custom") {
+      // Filter the customList while preserving its order
+      setDisplayed(
+        applyFiltersAndSort(
+          customList,
+          search,
+          filters,
+          "custom",
+          sharedUserMovieIds,
+        ),
+      );
+    } else {
+      setDisplayed(
+        applyFiltersAndSort(movies, search, filters, sort, sharedUserMovieIds),
+      );
+    }
+  }, [movies, customList, search, filters, sort, sharedUserMovieIds]);
 
   useEffect(() => {
     if (filters.sharedWithUsernames.length === 0) {
@@ -219,7 +272,7 @@ export default function WatchlistScreen() {
       const { data } = await supabase
         .from("user_movies")
         .select(
-          `movie_id, predicted_score,
+          `movie_id, predicted_score, custom_order,
           movies(id, title, poster_path, release_date, genres, runtime,
                  original_language, top_cast, director, watch_providers)`,
         )
@@ -234,6 +287,7 @@ export default function WatchlistScreen() {
             return {
               movie_id: row.movie_id,
               predicted_score: (row as any).predicted_score ?? null,
+              custom_order: (row as any).custom_order ?? null,
               title: m.title,
               poster_path: m.poster_path,
               release_date: m.release_date,
@@ -250,6 +304,29 @@ export default function WatchlistScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const saveCustomOrder = async () => {
+    setSaving(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await Promise.all(
+        customList.map((movie, index) =>
+          supabase
+            .from("user_movies")
+            .update({ custom_order: index })
+            .eq("user_id", user.id)
+            .eq("movie_id", movie.movie_id),
+        ),
+      );
+      setCustomDirty(false);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -300,6 +377,8 @@ export default function WatchlistScreen() {
   }, [movies]);
 
   const activeFilterCount = countActiveFilters(filters);
+  const isCustomMode = sort === "custom";
+  const hasSearchOrFilter = search.trim() !== "" || activeFilterCount > 0;
 
   if (loading) {
     return (
@@ -312,8 +391,53 @@ export default function WatchlistScreen() {
   const isEmpty = movies.length === 0;
   const noResults = !isEmpty && displayed.length === 0;
 
+  const renderMovieCard = (
+    item: WatchlistMovie,
+    drag?: () => void,
+    isActive?: boolean,
+  ) => (
+    <TouchableOpacity
+      style={[styles.row, isActive && styles.rowActive]}
+      onPress={() => router.push(`/movie/${item.movie_id}`)}
+      activeOpacity={drag ? 1 : 0.7}
+    >
+      {item.poster_path ? (
+        <Image
+          source={{ uri: getPosterUrl(item.poster_path)! }}
+          style={styles.poster}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.poster, styles.noPoster]} />
+      )}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.title}
+        </Text>
+        {item.release_date ? (
+          <Text style={styles.year}>{item.release_date.slice(0, 4)}</Text>
+        ) : null}
+      </View>
+      {item.predicted_score !== null && (
+        <View style={styles.scoreBox}>
+          <Text style={styles.scoreLabel}>PRED</Text>
+          <Text style={styles.score}>{Math.round(item.predicted_score)}</Text>
+        </View>
+      )}
+      {drag && (
+        <TouchableOpacity
+          onLongPress={drag}
+          style={styles.dragHandle}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.dragHandleText}>☰</Text>
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+
   return (
-    <View style={styles.container}>
+    <GestureHandlerRootView style={styles.container}>
       {/* Search + Filter row */}
       <View style={styles.topRow}>
         <TextInput
@@ -351,8 +475,13 @@ export default function WatchlistScreen() {
         <Text style={styles.importButtonText}>↑ Import from Letterboxd</Text>
       </TouchableOpacity>
 
-      {/* Sort chips */}
-      <View style={styles.sortRow}>
+      {/* Sort chips — horizontal scroll to fit all 6 */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.sortRowScroll}
+        contentContainerStyle={styles.sortRow}
+      >
         {SORT_OPTIONS.map((opt) => (
           <TouchableOpacity
             key={opt.value}
@@ -372,7 +501,27 @@ export default function WatchlistScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
+
+      {/* Save Order button — only visible in custom mode after a drag */}
+      {isCustomMode && customDirty && !hasSearchOrFilter && (
+        <TouchableOpacity
+          style={styles.saveOrderButton}
+          onPress={saveCustomOrder}
+          disabled={saving}
+        >
+          <Text style={styles.saveOrderButtonText}>
+            {saving ? "Saving..." : "Save Order"}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Hint when search/filter is active in custom mode */}
+      {isCustomMode && hasSearchOrFilter && (
+        <Text style={styles.customSearchNote}>
+          Clear search & filters to reorder
+        </Text>
+      )}
 
       {isEmpty ? (
         <View style={[styles.centered, { flex: 1 }]}>
@@ -393,7 +542,28 @@ export default function WatchlistScreen() {
             <Text style={styles.clearLink}>Clear filters</Text>
           </TouchableOpacity>
         </View>
+      ) : isCustomMode && !hasSearchOrFilter ? (
+        // Draggable list — long-press the ☰ handle to drag
+        <DraggableFlatList
+          data={customList}
+          keyExtractor={(item) => item.movie_id}
+          onDragEnd={({ data }) => {
+            setCustomList(data);
+            setCustomDirty(true);
+          }}
+          renderItem={({
+            item,
+            drag,
+            isActive,
+          }: RenderItemParams<WatchlistMovie>) => (
+            <ScaleDecorator>
+              {renderMovieCard(item, drag, isActive)}
+            </ScaleDecorator>
+          )}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
       ) : (
+        // Regular list for all other sort modes (or custom + active search/filter)
         <FlatList
           data={displayed}
           keyExtractor={(item) => item.movie_id}
@@ -404,40 +574,7 @@ export default function WatchlistScreen() {
               tintColor="#ffffff"
             />
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.row}
-              onPress={() => router.push(`/movie/${item.movie_id}`)}
-            >
-              {item.poster_path ? (
-                <Image
-                  source={{ uri: getPosterUrl(item.poster_path)! }}
-                  style={styles.poster}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={[styles.poster, styles.noPoster]} />
-              )}
-              <View style={styles.info}>
-                <Text style={styles.title} numberOfLines={2}>
-                  {item.title}
-                </Text>
-                {item.release_date ? (
-                  <Text style={styles.year}>
-                    {item.release_date.slice(0, 4)}
-                  </Text>
-                ) : null}
-              </View>
-              {item.predicted_score !== null && (
-                <View style={styles.scoreBox}>
-                  <Text style={styles.scoreLabel}>PRED</Text>
-                  <Text style={styles.score}>
-                    {Math.round(item.predicted_score)}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
+          renderItem={({ item }) => renderMovieCard(item)}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
@@ -454,7 +591,7 @@ export default function WatchlistScreen() {
         allDirectors={allDirectors}
         runtimeBounds={runtimeBounds}
       />
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
@@ -500,12 +637,15 @@ const styles = StyleSheet.create({
     borderColor: "#2a2a2a",
   },
   importButtonText: { color: "#e8572a", fontSize: 14, fontWeight: "600" },
+  sortRowScroll: {
+    flexGrow: 0,
+    marginBottom: 8,
+  },
   sortRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     paddingHorizontal: 12,
     gap: 8,
-    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
   },
   sortChip: {
     paddingHorizontal: 14,
@@ -518,6 +658,26 @@ const styles = StyleSheet.create({
   sortChipActive: { backgroundColor: "#ffffff", borderColor: "#ffffff" },
   sortChipText: { color: "#666666", fontSize: 13 },
   sortChipTextActive: { color: "#0d0d0d", fontWeight: "700" },
+  saveOrderButton: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingVertical: 10,
+    backgroundColor: "#e8572a",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  saveOrderButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  customSearchNote: {
+    color: "#555555",
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 8,
+    fontStyle: "italic",
+  },
   emptyTitle: {
     color: "#ffffff",
     fontSize: 18,
@@ -537,6 +697,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 10,
+  },
+  rowActive: {
+    backgroundColor: "#1a1a1a",
   },
   poster: { width: 50, height: 75, borderRadius: 6, marginRight: 14 },
   noPoster: { backgroundColor: "#1a1a1a" },
@@ -559,4 +722,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   score: { color: "#ffffff", fontSize: 16, fontWeight: "bold" },
+  dragHandle: {
+    paddingLeft: 12,
+    paddingRight: 4,
+  },
+  dragHandleText: {
+    color: "#444444",
+    fontSize: 18,
+  },
 });
