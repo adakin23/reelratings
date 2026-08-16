@@ -69,29 +69,35 @@ export default function PersonDetailScreen() {
 
       const movieIds = creditList.map((c) => String(c.id));
 
-      // Fetch both watched (ELO) and watchlist (predicted) movies in one query
-      const { data: userMovies } = await supabase
-        .from("user_movies")
-        .select("movie_id, elo, matchup_count, predicted_score, status")
-        .eq("user_id", user.id)
-        .in("status", ["watched", "watchlist"])
-        .in("movie_id", movieIds);
+      // Fetch rated movies (ELO) and all predicted scores in parallel
+      const [watchedResp, predictionsResp] = await Promise.all([
+        supabase
+          .from("user_movies")
+          .select("movie_id, elo, matchup_count")
+          .eq("user_id", user.id)
+          .eq("status", "watched")
+          .in("movie_id", movieIds),
+        supabase
+          .from("movie_predictions")
+          .select("movie_id, score")
+          .eq("user_id", user.id)
+          .in("movie_id", movieIds),
+      ]);
 
       const watchedMap = new Map<
         string,
         { elo: number; matchup_count: number }
       >();
-      const watchlistMap = new Map<string, number>(); // movie_id → predicted_score
+      for (const um of watchedResp.data ?? []) {
+        watchedMap.set(um.movie_id, {
+          elo: um.elo,
+          matchup_count: um.matchup_count,
+        });
+      }
 
-      for (const um of userMovies ?? []) {
-        if (um.status === "watched") {
-          watchedMap.set(um.movie_id, {
-            elo: um.elo,
-            matchup_count: um.matchup_count,
-          });
-        } else if (um.status === "watchlist" && um.predicted_score != null) {
-          watchlistMap.set(um.movie_id, um.predicted_score);
-        }
+      const predictionsMap = new Map<string, number>(); // movie_id → predicted score
+      for (const p of predictionsResp.data ?? []) {
+        predictionsMap.set(p.movie_id, p.score);
       }
 
       // Normalize ELOs across the user's rated films for this person
@@ -102,7 +108,7 @@ export default function PersonDetailScreen() {
       const ranked: RankedCredit[] = creditList.map((c) => {
         const mid = String(c.id);
         const watchedData = watchedMap.get(mid);
-        const predictedScore = watchlistMap.get(mid);
+        const predictedScore = predictionsMap.get(mid);
         return {
           ...c,
           elo: watchedData?.elo,
@@ -112,16 +118,16 @@ export default function PersonDetailScreen() {
             : undefined,
           predicted_score: predictedScore,
           inLibrary: !!watchedData,
-          inWatchlist: predictedScore !== undefined,
+          inWatchlist: false, // no longer used — predictions come from movie_predictions table
         };
       });
 
-      // Unified sort: rated by ELO, watchlist by predicted score, unscored by release date
+      // Unified sort: all scored movies together by best available score (0-100 scale),
+      // unscored movies fall to the bottom sorted by release date
       const getScore = (c: RankedCredit): number => {
         if (c.inLibrary && c.normalizedScore !== undefined)
-          return c.normalizedScore + 1000;
-        if (c.inWatchlist && c.predicted_score !== undefined)
-          return c.predicted_score;
+          return c.normalizedScore;
+        if (c.predicted_score !== undefined) return c.predicted_score;
         return -1;
       };
       ranked.sort((a, b) => {

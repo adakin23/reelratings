@@ -226,12 +226,10 @@ def process_user(user_id, matchups, user_movies, feature_df_scaled, movie_lookup
     bt.fit(X, y)
     coef = bt.coef_[0]
 
-    # ── Compute BT strength scores for all relevant movies ────────────────────
+    # ── Compute BT strength scores for ALL movies in the database ────────────
     # Strength = dot(coefficients, scaled_features)
     # Higher strength → predicted to win more matchups → user prefers this movie
-    all_ids = list(
-        {str(r["movie_id"]) for r in rated + watchlist} & set(feature_df_scaled.index)
-    )
+    all_ids = list(feature_df_scaled.index)
     if not all_ids:
         return {mid: round(s, 1) for mid, s in tmdb_scores.items()}, {}, {}
 
@@ -243,15 +241,15 @@ def process_user(user_id, matchups, user_movies, feature_df_scaled, movie_lookup
         bt_normalized = np.full(len(strengths), 50.0)
     bt_scores = dict(zip(all_ids, bt_normalized))
 
-    # ── Cold start blend ──────────────────────────────────────────────────────
+    # ── Cold start blend for ALL movies ──────────────────────────────────────
     # w = 0 → pure TMDB (0 matchups)
     # w = 1 → pure BT  (50+ matchups)
     w = min(1.0, total_matchups / COLD_START_FULL_WEIGHT)
     predicted = {}
-    for um in watchlist:
-        mid = str(um["movie_id"])
-        bt_s = bt_scores.get(mid, tmdb_scores.get(mid, global_mean_tmdb))
-        tmdb_s = tmdb_scores.get(mid, global_mean_tmdb)
+    for mid in all_ids:
+        m = movie_lookup.get(mid, {})
+        tmdb_s = bayesian_tmdb(m.get("vote_average"), m.get("vote_count"), global_mean_tmdb)
+        bt_s = bt_scores.get(mid, tmdb_s)
         predicted[mid] = round(w * bt_s + (1 - w) * tmdb_s, 1)
 
     # ── Residual-based actor/director affinity scores ─────────────────────────
@@ -302,17 +300,39 @@ def process_user(user_id, matchups, user_movies, feature_df_scaled, movie_lookup
 
 # ── Supabase writes ───────────────────────────────────────────────────────────
 
-def write_predicted_scores(user_id, predicted_scores):
-    """Write predicted_score back to user_movies for each watchlist movie."""
+def write_predicted_scores(user_id, predicted_scores, watchlist_ids: set):
+    """
+    Write predictions to two places:
+      1. movie_predictions — all movies (used by person detail screen etc.)
+      2. user_movies.predicted_score — watchlist movies only (used by watchlist screen)
+    """
     if not predicted_scores:
         return
-    rows = [
-        {"user_id": user_id, "movie_id": movie_id, "predicted_score": score}
-        for movie_id, score in predicted_scores.items()
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Write all predictions to movie_predictions table
+    # Batch in chunks of 500 to avoid request size limits
+    all_rows = [
+        {"user_id": user_id, "movie_id": mid, "score": score, "updated_at": now}
+        for mid, score in predicted_scores.items()
     ]
-    supabase.from_("user_movies").upsert(
-        rows, on_conflict="user_id,movie_id"
-    ).execute()
+    chunk_size = 500
+    for i in range(0, len(all_rows), chunk_size):
+        supabase.from_("movie_predictions").upsert(
+            all_rows[i:i + chunk_size], on_conflict="user_id,movie_id"
+        ).execute()
+
+    # Also write to user_movies.predicted_score for watchlist items (backward compat)
+    watchlist_rows = [
+        {"user_id": user_id, "movie_id": mid, "predicted_score": score}
+        for mid, score in predicted_scores.items()
+        if mid in watchlist_ids
+    ]
+    if watchlist_rows:
+        supabase.from_("user_movies").upsert(
+            watchlist_rows, on_conflict="user_id,movie_id"
+        ).execute()
 
 def write_affinity_scores(user_id, actor_scores, director_scores):
     """Upsert actor and director affinity scores."""
@@ -427,7 +447,8 @@ def main():
             global_mean_tmdb=global_mean_tmdb,
         )
 
-        write_predicted_scores(user_id, predicted)
+        watchlist_ids = {str(um["movie_id"]) for um in user_um if um["status"] == "watchlist"}
+        write_predicted_scores(user_id, predicted, watchlist_ids)
         write_affinity_scores(user_id, actor_scores, director_scores)
 
         mode = "BT+TMDB blend" if total_matchups >= MIN_MATCHUPS_FOR_BT else "TMDB only"
