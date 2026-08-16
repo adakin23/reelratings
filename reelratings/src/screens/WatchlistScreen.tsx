@@ -5,7 +5,6 @@ import {
   FlatList,
   Image,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,7 +15,6 @@ import DraggableFlatList, {
   RenderItemParams,
   ScaleDecorator,
 } from "react-native-draggable-flatlist";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import FilterModal from "../components/FilterModal";
 import { supabase } from "../lib/supabase";
 import { getPosterUrl } from "../lib/tmdb";
@@ -437,7 +435,7 @@ export default function WatchlistScreen() {
   );
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <View style={styles.container}>
       {/* Search + Filter row */}
       <View style={styles.topRow}>
         <TextInput
@@ -475,13 +473,8 @@ export default function WatchlistScreen() {
         <Text style={styles.importButtonText}>↑ Import from Letterboxd</Text>
       </TouchableOpacity>
 
-      {/* Sort chips — horizontal scroll to fit all 6 */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.sortRowScroll}
-        contentContainerStyle={styles.sortRow}
-      >
+      {/* Sort chips */}
+      <View style={styles.sortRow}>
         {SORT_OPTIONS.map((opt) => (
           <TouchableOpacity
             key={opt.value}
@@ -501,7 +494,7 @@ export default function WatchlistScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
       {/* Save Order button — only visible in custom mode after a drag */}
       {isCustomMode && customDirty && !hasSearchOrFilter && (
@@ -523,61 +516,63 @@ export default function WatchlistScreen() {
         </Text>
       )}
 
-      {isEmpty ? (
-        <View style={[styles.centered, { flex: 1 }]}>
-          <Text style={styles.emptyTitle}>Your watchlist is empty</Text>
-          <Text style={styles.emptySubtext}>
-            Swipe right on any movie in the Match tab to add it here
-          </Text>
-        </View>
-      ) : noResults ? (
-        <View style={[styles.centered, { flex: 1 }]}>
-          <Text style={styles.emptyTitle}>No results match your filters</Text>
-          <TouchableOpacity
-            onPress={() => {
-              setFilters(DEFAULT_FILTERS);
-              setSearch("");
+      <View style={{ flex: 1 }}>
+        {isEmpty ? (
+          <View style={[styles.centered, { flex: 1 }]}>
+            <Text style={styles.emptyTitle}>Your watchlist is empty</Text>
+            <Text style={styles.emptySubtext}>
+              Swipe right on any movie in the Match tab to add it here
+            </Text>
+          </View>
+        ) : noResults ? (
+          <View style={[styles.centered, { flex: 1 }]}>
+            <Text style={styles.emptyTitle}>No results match your filters</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setFilters(DEFAULT_FILTERS);
+                setSearch("");
+              }}
+            >
+              <Text style={styles.clearLink}>Clear filters</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isCustomMode && !hasSearchOrFilter ? (
+          // Draggable list — long-press the ☰ handle to drag (mobile only)
+          <DraggableFlatList
+            data={customList}
+            keyExtractor={(item) => item.movie_id}
+            onDragEnd={({ data }) => {
+              setCustomList(data);
+              setCustomDirty(true);
             }}
-          >
-            <Text style={styles.clearLink}>Clear filters</Text>
-          </TouchableOpacity>
-        </View>
-      ) : isCustomMode && !hasSearchOrFilter ? (
-        // Draggable list — long-press the ☰ handle to drag
-        <DraggableFlatList
-          data={customList}
-          keyExtractor={(item) => item.movie_id}
-          onDragEnd={({ data }) => {
-            setCustomList(data);
-            setCustomDirty(true);
-          }}
-          renderItem={({
-            item,
-            drag,
-            isActive,
-          }: RenderItemParams<WatchlistMovie>) => (
-            <ScaleDecorator>
-              {renderMovieCard(item, drag, isActive)}
-            </ScaleDecorator>
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      ) : (
-        // Regular list for all other sort modes (or custom + active search/filter)
-        <FlatList
-          data={displayed}
-          keyExtractor={(item) => item.movie_id}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => loadWatchlist(true)}
-              tintColor="#ffffff"
-            />
-          }
-          renderItem={({ item }) => renderMovieCard(item)}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      )}
+            renderItem={({
+              item,
+              drag,
+              isActive,
+            }: RenderItemParams<WatchlistMovie>) => (
+              <ScaleDecorator>
+                {renderMovieCard(item, drag, isActive)}
+              </ScaleDecorator>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        ) : (
+          // Regular list for all other sort modes (or custom + active search/filter)
+          <FlatList
+            data={displayed}
+            keyExtractor={(item) => item.movie_id}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => loadWatchlist(true)}
+                tintColor="#ffffff"
+              />
+            }
+            renderItem={({ item }) => renderMovieCard(item)}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        )}
+      </View>
 
       <FilterModal
         visible={filterModalVisible}
@@ -591,7 +586,7 @@ export default function WatchlistScreen() {
         allDirectors={allDirectors}
         runtimeBounds={runtimeBounds}
       />
-    </GestureHandlerRootView>
+    </View>
   );
 }
 
@@ -637,15 +632,12 @@ const styles = StyleSheet.create({
     borderColor: "#2a2a2a",
   },
   importButtonText: { color: "#e8572a", fontSize: 14, fontWeight: "600" },
-  sortRowScroll: {
-    flexGrow: 0,
-    marginBottom: 8,
-  },
   sortRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     paddingHorizontal: 12,
     gap: 8,
-    flexDirection: "row",
-    alignItems: "center",
+    marginBottom: 8,
   },
   sortChip: {
     paddingHorizontal: 14,
