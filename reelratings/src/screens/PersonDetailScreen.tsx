@@ -28,6 +28,14 @@ interface RankedCredit extends TMDBPersonCredit {
   inWatchlist: boolean; // movie is on user's watchlist (has predicted score)
 }
 
+function getAffinityColor(score: number): string {
+  if (score >= 70) return "#4caf50";
+  if (score >= 40) return "#8bc34a";
+  if (score >= 30) return "#888888";
+  if (score >= 20) return "#ff9800";
+  return "#e8572a";
+}
+
 export default function PersonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -141,26 +149,35 @@ export default function PersonDetailScreen() {
 
       setCredits(ranked);
 
-      // Fetch affinity score based on department (Acting → actor table, Directing → director table)
+      // Fetch affinity score, normalized 0-100 against all actors/directors in the user's profile
       const department = details?.known_for_department;
       const personName = details?.name;
       if (personName) {
-        if (department === "Acting") {
-          const { data } = await supabase
-            .from("actor_affinity_scores")
-            .select("score")
-            .eq("user_id", user.id)
-            .eq("actor_name", personName)
-            .maybeSingle();
-          setAffinityScore(data?.score ?? null);
-        } else if (department === "Directing") {
-          const { data } = await supabase
-            .from("director_affinity_scores")
-            .select("score")
-            .eq("user_id", user.id)
-            .eq("director_name", personName)
-            .maybeSingle();
-          setAffinityScore(data?.score ?? null);
+        const table =
+          department === "Directing"
+            ? "director_affinity_scores"
+            : "actor_affinity_scores";
+        const nameCol =
+          department === "Directing" ? "director_name" : "actor_name";
+
+        // Fetch all scores for this user to compute min/max for normalization
+        const { data: allScores } = await supabase
+          .from(table)
+          .select(`${nameCol}, score`)
+          .eq("user_id", user.id);
+
+        if (allScores && allScores.length > 0) {
+          const thisRow = allScores.find((r: any) => r[nameCol] === personName);
+          if (thisRow) {
+            const rawScores = allScores.map((r: any) => r.score as number);
+            const minS = Math.min(...rawScores);
+            const maxS = Math.max(...rawScores);
+            const normalized =
+              maxS > minS
+                ? Math.round(((thisRow.score - minS) / (maxS - minS)) * 100)
+                : 50;
+            setAffinityScore(normalized);
+          }
         }
       }
     } finally {
@@ -228,14 +245,12 @@ export default function PersonDetailScreen() {
               <Text style={styles.affinityLabel}>Affinity</Text>
               <Text
                 style={[
-                  styles.affinityScore,
-                  { color: affinityScore >= 0 ? "#4caf50" : "#e8572a" },
+                  styles.affinityValue,
+                  { color: getAffinityColor(affinityScore) },
                 ]}
               >
-                {affinityScore >= 0 ? "+" : ""}
-                {Math.round(affinityScore)}
+                {affinityScore}
               </Text>
-              <Text style={styles.affinityNote}>vs. expected</Text>
             </View>
           )}
         </View>
@@ -312,8 +327,8 @@ export default function PersonDetailScreen() {
                 <View style={styles.scoreBox}>
                   <Text style={styles.score}>{credit.normalizedScore}</Text>
                 </View>
-              ) : credit.inWatchlist && credit.predicted_score !== undefined ? (
-                // Watchlist movie — show predicted score with PRED label
+              ) : credit.predicted_score !== undefined ? (
+                // Unrated movie — show predicted score with PRED label
                 <View style={styles.scoreBox}>
                   <Text style={styles.scoreLabel}>PRED</Text>
                   <Text style={styles.score}>
@@ -321,7 +336,7 @@ export default function PersonDetailScreen() {
                   </Text>
                 </View>
               ) : (
-                // Not in library or watchlist
+                // No score available
                 <View style={styles.notRatedBox}>
                   <Text style={styles.notRatedText}>—</Text>
                 </View>
@@ -382,23 +397,19 @@ const styles = StyleSheet.create({
   affinityRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     marginTop: 8,
   },
   affinityLabel: {
     color: "#888888",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  affinityScore: {
-    fontSize: 16,
+  affinityValue: {
+    fontSize: 20,
     fontWeight: "bold",
-  },
-  affinityNote: {
-    color: "#444444",
-    fontSize: 11,
   },
   bioSection: {
     paddingHorizontal: 20,
