@@ -74,8 +74,10 @@ def get_global_genres(movies):
     genres = set()
     for m in movies:
         for g in (m.get("genres") or []):
-            if g.get("name"):
+            if isinstance(g, dict) and g.get("name"):
                 genres.add(g["name"])
+            elif isinstance(g, str) and g:
+                genres.add(g)
     return sorted(genres)
 
 def get_top_keywords(movies, n=TOP_KEYWORDS_COUNT):
@@ -127,8 +129,14 @@ def build_feature_df(movie_ids, movie_lookup, global_genres, top_keywords, globa
         m = movie_lookup.get(str(mid), {})
         row = {}
 
-        # Genres (multi-hot encoded)
-        movie_genres = {g["name"] for g in (m.get("genres") or [])}
+        # Genres (multi-hot encoded) — handle both {id, name} objects and plain strings
+        raw_genres = m.get("genres") or []
+        movie_genres = set()
+        for g in raw_genres:
+            if isinstance(g, dict) and g.get("name"):
+                movie_genres.add(g["name"])
+            elif isinstance(g, str) and g:
+                movie_genres.add(g)
         for g in global_genres:
             row[f"g_{g}"] = 1.0 if g in movie_genres else 0.0
 
