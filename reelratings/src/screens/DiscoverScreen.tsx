@@ -61,8 +61,27 @@ function applyFiltersAndSort(
   filters: FilterState,
   sort: string,
   sharedUserMovieIds: Map<string, string[]>,
+  userStatuses: Map<string, string>,
 ): DiscoverMovie[] {
   let result = movies;
+
+  // Always hide movies the user has explicitly removed
+  result = result.filter(
+    (m) => userStatuses.get(m.movie_id) !== "do_not_watch",
+  );
+
+  // Status filter (Watched / Watchlist / Undiscovered)
+  if (filters.statuses && filters.statuses.length > 0) {
+    result = result.filter((m) => {
+      const status = userStatuses.get(m.movie_id) ?? null;
+      return filters.statuses.some((s) => {
+        if (s === "watched") return status === "watched";
+        if (s === "watchlist") return status === "watchlist";
+        if (s === "undiscovered") return status === null;
+        return false;
+      });
+    });
+  }
 
   if (filters.genres.length > 0) {
     result = result.filter((m) => {
@@ -202,10 +221,23 @@ export default function DiscoverScreen() {
   useEffect(() => {
     if (!isSearchMode) {
       setDisplayed(
-        applyFiltersAndSort(browseMovies, filters, sort, sharedUserMovieIds),
+        applyFiltersAndSort(
+          browseMovies,
+          filters,
+          sort,
+          sharedUserMovieIds,
+          userStatuses,
+        ),
       );
     }
-  }, [browseMovies, filters, sort, sharedUserMovieIds, isSearchMode]);
+  }, [
+    browseMovies,
+    filters,
+    sort,
+    sharedUserMovieIds,
+    userStatuses,
+    isSearchMode,
+  ]);
 
   // Fetch shared watchlist movie IDs when shared usernames filter changes
   useEffect(() => {
@@ -717,6 +749,7 @@ export default function DiscoverScreen() {
         allActors={allActors}
         allDirectors={allDirectors}
         runtimeBounds={runtimeBounds}
+        showStatusFilter
         onSetDefault={handleSetDefault}
         onClearDefault={handleClearDefault}
       />

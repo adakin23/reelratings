@@ -9,6 +9,7 @@ export interface FilterState {
   directors: string[];
   streamingServices: string[];
   sharedWithUsernames: string[];
+  statuses: string[]; // 'watched' | 'watchlist' | 'undiscovered' — used by Discover only
 }
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -22,6 +23,7 @@ export const DEFAULT_FILTERS: FilterState = {
   directors: [],
   streamingServices: [],
   sharedWithUsernames: [],
+  statuses: [],
 };
 
 export function countActiveFilters(filters: FilterState): number {
@@ -34,6 +36,7 @@ export function countActiveFilters(filters: FilterState): number {
   if (filters.directors.length > 0) count++;
   if (filters.streamingServices.length > 0) count++;
   if (filters.sharedWithUsernames.length > 0) count++;
+  if (filters.statuses.length > 0) count++;
   return count;
 }
 

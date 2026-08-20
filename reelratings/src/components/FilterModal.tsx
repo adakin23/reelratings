@@ -13,6 +13,12 @@ import { supabase } from "../lib/supabase";
 import { FilterState, LANGUAGE_NAMES } from "../types/filters";
 import RangeSlider from "./RangeSlider";
 
+const STATUS_OPTIONS = [
+  { value: "watched", label: "Watched" },
+  { value: "watchlist", label: "Watchlist" },
+  { value: "undiscovered", label: "Undiscovered" },
+];
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -24,6 +30,7 @@ interface Props {
   allActors: string[];
   allDirectors: string[];
   runtimeBounds: { min: number; max: number };
+  showStatusFilter?: boolean; // only shown on Discover screen
   onSetDefault?: () => void;
   onClearDefault?: () => void;
 }
@@ -39,9 +46,19 @@ export default function FilterModal({
   allActors,
   allDirectors,
   runtimeBounds,
+  showStatusFilter = false,
   onSetDefault,
   onClearDefault,
 }: Props) {
+  // Searchable dropdown state
+  const [genreSearch, setGenreSearch] = useState("");
+  const [genreOpen, setGenreOpen] = useState(false);
+  const [langSearch, setLangSearch] = useState("");
+  const [langOpen, setLangOpen] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [serviceOpen, setServiceOpen] = useState(false);
+
+  // Actor / Director / Username search state
   const [actorSearch, setActorSearch] = useState("");
   const [directorSearch, setDirectorSearch] = useState("");
   const [usernameSearch, setUsernameSearch] = useState("");
@@ -96,12 +113,18 @@ export default function FilterModal({
       directors: [],
       streamingServices: [],
       sharedWithUsernames: [],
+      statuses: [],
     });
+    setGenreSearch("");
+    setGenreOpen(false);
+    setLangSearch("");
+    setLangOpen(false);
+    setServiceSearch("");
+    setServiceOpen(false);
     setActorSearch("");
     setDirectorSearch("");
     setUsernameSearch("");
     setUsernameSuggestions([]);
-    // Also remove the saved default so it doesn't re-apply on next open
     onClearDefault?.();
   };
 
@@ -111,6 +134,7 @@ export default function FilterModal({
     setTimeout(() => setDefaultSaved(false), 2000);
   };
 
+  // Actor / Director suggestions (require 2+ chars, same as before)
   const actorSuggestions =
     actorSearch.trim().length > 1
       ? allActors
@@ -146,19 +170,15 @@ export default function FilterModal({
       onRequestClose={onClose}
     >
       <View style={styles.wrapper}>
-        {/* Dimmed backdrop */}
         <TouchableOpacity
           style={styles.backdrop}
           onPress={onClose}
           activeOpacity={1}
         />
 
-        {/* Sheet */}
         <View style={styles.sheet}>
-          {/* Handle */}
           <View style={styles.handle} />
 
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={clearAll}>
               <Text style={styles.clearText}>Clear All</Text>
@@ -170,18 +190,54 @@ export default function FilterModal({
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll}>
-            {/* Genre */}
+            {/* ── Library Status (Discover only) ── */}
+            {showStatusFilter && (
+              <Section title="Library Status">
+                <View style={styles.statusRow}>
+                  {STATUS_OPTIONS.map((opt) => {
+                    const active = filters.statuses.includes(opt.value);
+                    return (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[
+                          styles.statusChip,
+                          active && styles.statusChipActive,
+                        ]}
+                        onPress={() => toggleChip("statuses", opt.value)}
+                      >
+                        <Text
+                          style={[
+                            styles.statusChipText,
+                            active && styles.statusChipTextActive,
+                          ]}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </Section>
+            )}
+
+            {/* ── Genre ── */}
             {availableGenres.length > 0 && (
               <Section title="Genre">
-                <ChipGrid
+                <SearchableDropdown
+                  placeholder="Search genres..."
                   options={availableGenres}
                   selected={filters.genres}
                   onToggle={(v) => toggleChip("genres", v)}
+                  searchValue={genreSearch}
+                  onSearchChange={setGenreSearch}
+                  isOpen={genreOpen}
+                  onOpen={() => setGenreOpen(true)}
+                  onClose={() => setTimeout(() => setGenreOpen(false), 150)}
                 />
               </Section>
             )}
 
-            {/* Release Year */}
+            {/* ── Release Year ── */}
             <Section title="Release Year">
               <View style={styles.yearRow}>
                 <TextInput
@@ -210,7 +266,7 @@ export default function FilterModal({
               </View>
             </Section>
 
-            {/* Runtime */}
+            {/* ── Runtime ── */}
             {runtimeBounds.max > 0 && (
               <Section title="Runtime">
                 <RangeSlider
@@ -227,30 +283,42 @@ export default function FilterModal({
               </Section>
             )}
 
-            {/* Language */}
+            {/* ── Language ── */}
             {availableLanguages.length > 0 && (
               <Section title="Language">
-                <ChipGrid
+                <SearchableDropdown
+                  placeholder="Search languages..."
                   options={availableLanguages}
                   selected={filters.languages}
                   onToggle={(v) => toggleChip("languages", v)}
                   labelFn={(v) => LANGUAGE_NAMES[v] ?? v.toUpperCase()}
+                  searchValue={langSearch}
+                  onSearchChange={setLangSearch}
+                  isOpen={langOpen}
+                  onOpen={() => setLangOpen(true)}
+                  onClose={() => setTimeout(() => setLangOpen(false), 150)}
                 />
               </Section>
             )}
 
-            {/* Streaming Service */}
+            {/* ── Streaming Service ── */}
             {availableServices.length > 0 && (
               <Section title="Streaming Service">
-                <ChipGrid
+                <SearchableDropdown
+                  placeholder="Search streaming services..."
                   options={availableServices}
                   selected={filters.streamingServices}
                   onToggle={(v) => toggleChip("streamingServices", v)}
+                  searchValue={serviceSearch}
+                  onSearchChange={setServiceSearch}
+                  isOpen={serviceOpen}
+                  onOpen={() => setServiceOpen(true)}
+                  onClose={() => setTimeout(() => setServiceOpen(false), 150)}
                 />
               </Section>
             )}
 
-            {/* Actor */}
+            {/* ── Actor ── */}
             <Section title="Actor">
               <TextInput
                 style={styles.searchInput}
@@ -279,7 +347,7 @@ export default function FilterModal({
               )}
             </Section>
 
-            {/* Director */}
+            {/* ── Director ── */}
             <Section title="Director">
               <TextInput
                 style={styles.searchInput}
@@ -308,7 +376,7 @@ export default function FilterModal({
               )}
             </Section>
 
-            {/* Friends' Watchlists */}
+            {/* ── Friends' Watchlists ── */}
             <Section title="Friends' Watchlists">
               <TextInput
                 style={styles.searchInput}
@@ -350,7 +418,7 @@ export default function FilterModal({
               )}
             </Section>
 
-            {/* Set as Default */}
+            {/* ── Set as Default ── */}
             <View style={styles.setDefaultRow}>
               <TouchableOpacity
                 style={[
@@ -406,55 +474,138 @@ const section = StyleSheet.create({
   },
 });
 
-interface ChipGridProps {
+// Searchable dropdown — shows full list on focus, filters as user types
+interface SearchableDropdownProps {
+  placeholder: string;
   options: string[];
   selected: string[];
   onToggle: (v: string) => void;
   labelFn?: (v: string) => string;
+  searchValue: string;
+  onSearchChange: (v: string) => void;
+  isOpen: boolean;
+  onOpen: () => void;
+  onClose: () => void;
 }
 
-function ChipGrid({ options, selected, onToggle, labelFn }: ChipGridProps) {
+function SearchableDropdown({
+  placeholder,
+  options,
+  selected,
+  onToggle,
+  labelFn,
+  searchValue,
+  onSearchChange,
+  isOpen,
+  onOpen,
+  onClose,
+}: SearchableDropdownProps) {
+  const label = (v: string) => (labelFn ? labelFn(v) : v);
+
+  const filtered = searchValue.trim()
+    ? options.filter((o) =>
+        label(o).toLowerCase().includes(searchValue.toLowerCase()),
+      )
+    : options;
+
   return (
-    <View style={chip.grid}>
-      {options.map((opt) => {
-        const active = selected.includes(opt);
-        return (
-          <TouchableOpacity
-            key={opt}
-            style={[chip.base, active && chip.active]}
-            onPress={() => onToggle(opt)}
-          >
-            <Text style={[chip.text, active && chip.textActive]}>
-              {labelFn ? labelFn(opt) : opt}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View>
+      <TextInput
+        style={dropdown.input}
+        placeholder={placeholder}
+        placeholderTextColor="#555"
+        value={searchValue}
+        onChangeText={onSearchChange}
+        onFocus={onOpen}
+        onBlur={onClose}
+      />
+
+      {isOpen && (
+        <ScrollView
+          style={dropdown.list}
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+        >
+          {filtered.length === 0 ? (
+            <Text style={dropdown.noResults}>No results</Text>
+          ) : (
+            filtered.map((opt) => {
+              const active = selected.includes(opt);
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  style={dropdown.option}
+                  onPress={() => onToggle(opt)}
+                >
+                  <Text
+                    style={[
+                      dropdown.optionText,
+                      active && dropdown.optionTextActive,
+                    ]}
+                  >
+                    {label(opt)}
+                  </Text>
+                  {active && <Text style={dropdown.checkmark}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
+
+      {selected.length > 0 && (
+        <SelectedChips items={selected} onRemove={onToggle} labelFn={labelFn} />
+      )}
     </View>
   );
 }
 
-const chip = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  base: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+const dropdown = StyleSheet.create({
+  input: {
     backgroundColor: "#1a1a1a",
+    borderRadius: 8,
+    padding: 10,
+    color: "#ffffff",
+    fontSize: 15,
     borderWidth: 1,
     borderColor: "#2a2a2a",
   },
-  active: { backgroundColor: "#e8572a", borderColor: "#e8572a" },
-  text: { color: "#aaaaaa", fontSize: 13 },
-  textActive: { color: "#ffffff", fontWeight: "600" },
+  list: {
+    maxHeight: 180,
+    backgroundColor: "#111111",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+    marginTop: 4,
+  },
+  option: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1a1a1a",
+  },
+  optionText: { color: "#aaaaaa", fontSize: 14 },
+  optionTextActive: { color: "#ffffff", fontWeight: "600" },
+  checkmark: { color: "#e8572a", fontSize: 14, fontWeight: "700" },
+  noResults: {
+    color: "#555555",
+    fontSize: 13,
+    padding: 12,
+    fontStyle: "italic",
+  },
 });
 
 function SelectedChips({
   items,
   onRemove,
+  labelFn,
 }: {
   items: string[];
   onRemove: (v: string) => void;
+  labelFn?: (v: string) => string;
 }) {
   return (
     <View style={selected.row}>
@@ -464,7 +615,7 @@ function SelectedChips({
           style={selected.chip}
           onPress={() => onRemove(item)}
         >
-          <Text style={selected.text}>{item} ×</Text>
+          <Text style={selected.text}>{labelFn ? labelFn(item) : item} ×</Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -522,6 +673,22 @@ const styles = StyleSheet.create({
   clearText: { color: "#e8572a", fontSize: 14 },
   doneText: { color: "#ffffff", fontSize: 14, fontWeight: "600" },
   scroll: { flex: 1 },
+  statusRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  statusChip: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "#2a2a2a",
+    alignItems: "center",
+  },
+  statusChipActive: { backgroundColor: "#e8572a", borderColor: "#e8572a" },
+  statusChipText: { color: "#aaaaaa", fontSize: 13, fontWeight: "600" },
+  statusChipTextActive: { color: "#ffffff" },
   yearRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   yearInput: {
     flex: 1,
