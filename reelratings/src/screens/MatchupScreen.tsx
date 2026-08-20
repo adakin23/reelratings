@@ -530,7 +530,7 @@ export default function MatchupScreen() {
           if (current && Math.abs(gs.dx) > 30) {
             const movie =
               activeCard.current === "top" ? current[0] : current[1];
-            const label = gs.dx < 0 ? "Won't watch" : "Watchlist";
+            const label = gs.dx < 0 ? "Not Seen" : "Watchlist";
             setSwipeHint(`${label}: ${movie.title}`);
           }
         }
@@ -711,7 +711,7 @@ export default function MatchupScreen() {
         <View style={styles.divider}>
           <Text style={styles.vsText}>VS</Text>
           <Text style={styles.dividerHint}>
-            ↑ top wins · ↓ bottom wins · ← don't watch · → watchlist
+            ↑ top wins · ↓ bottom wins · ← not seen · → watchlist
           </Text>
         </View>
 

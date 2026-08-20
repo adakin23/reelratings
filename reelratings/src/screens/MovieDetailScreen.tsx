@@ -52,13 +52,11 @@ interface UserMovieData {
 const STATUS_LABELS: Record<string, string> = {
   watched: "Watched",
   watchlist: "Watchlist",
-  do_not_watch: "Don't Want to Watch",
 };
 
 const STATUS_COLORS: Record<string, string> = {
   watched: "#4caf50",
   watchlist: "#2196f3",
-  do_not_watch: "#f44336",
 };
 
 export default function MovieDetailScreen() {
@@ -85,13 +83,11 @@ export default function MovieDetailScreen() {
       setMovie(details);
       setWatchProviders(providers);
 
-      // Save providers to DB so streaming filter stays fresh without needing the enrichment script
       if (providers && Object.keys(providers).length > 0) {
         supabase
           .from("movies")
           .update({ watch_providers: providers })
           .eq("id", movieId);
-        // Fire-and-forget — don't block the UI on this
       }
 
       const {
@@ -126,9 +122,7 @@ export default function MovieDetailScreen() {
     }
   };
 
-  const updateStatus = async (
-    newStatus: "watched" | "watchlist" | "do_not_watch",
-  ) => {
+  const updateStatus = async (newStatus: "watched" | "watchlist") => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -187,7 +181,6 @@ export default function MovieDetailScreen() {
 
     setStatusUpdating(true);
     try {
-      // Ensure movie exists in movies table
       await supabase.from("movies").upsert(
         {
           id,
@@ -201,7 +194,6 @@ export default function MovieDetailScreen() {
         { onConflict: "id" },
       );
 
-      // Ensure user has this movie in their library as 'watched'
       const { data: existing } = await supabase
         .from("user_movies")
         .select("id, status")
@@ -237,7 +229,6 @@ export default function MovieDetailScreen() {
         setUserMovie((prev) => (prev ? { ...prev, status: "watched" } : null));
       }
 
-      // Navigate to match tab in focus mode
       router.push({ pathname: "/(tabs)/", params: { focusMovieId: id } });
     } finally {
       setStatusUpdating(false);
@@ -266,7 +257,6 @@ export default function MovieDetailScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Poster */}
       {movie.poster_path ? (
         <Image
           source={{ uri: getPosterUrl(movie.poster_path)! }}
@@ -278,7 +268,6 @@ export default function MovieDetailScreen() {
       )}
 
       <View style={styles.content}>
-        {/* Title & Meta */}
         <Text style={styles.title}>{movie.title}</Text>
         <Text style={styles.meta}>
           {movie.release_date?.slice(0, 4)}
@@ -328,11 +317,11 @@ export default function MovieDetailScreen() {
           <Text style={styles.rateButtonText}>⚡ Rate This Movie Now</Text>
         </TouchableOpacity>
 
-        {/* Status */}
+        {/* Status — Watched and Watchlist only */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Status</Text>
           <View style={styles.statusRow}>
-            {(["watched", "watchlist", "do_not_watch"] as const).map((s) => (
+            {(["watched", "watchlist"] as const).map((s) => (
               <TouchableOpacity
                 key={s}
                 style={[
@@ -355,6 +344,12 @@ export default function MovieDetailScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          {userMovie?.status === "do_not_watch" && (
+            <Text style={styles.notSeenNote}>
+              This movie is in your "Not Seen" list. Tap Watched or Watchlist to
+              add it back.
+            </Text>
+          )}
         </View>
 
         {/* Streaming / Where to Watch */}
@@ -607,6 +602,12 @@ const styles = StyleSheet.create({
   },
   statusButtonTextActive: {
     color: "#ffffff",
+  },
+  notSeenNote: {
+    color: "#555555",
+    fontSize: 12,
+    fontStyle: "italic",
+    marginTop: 8,
   },
   overview: {
     color: "#aaaaaa",
