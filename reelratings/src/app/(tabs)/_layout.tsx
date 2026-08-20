@@ -1,4 +1,18 @@
-import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { Tabs, useRouter } from "expo-router";
+import { TouchableOpacity } from "react-native";
+
+function ProfileButton() {
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      onPress={() => router.push("/profile")}
+      style={{ marginRight: 16 }}
+    >
+      <Ionicons name="person-circle-outline" size={28} color="#ffffff" />
+    </TouchableOpacity>
+  );
+}
 
 export default function TabLayout() {
   return (
@@ -14,6 +28,7 @@ export default function TabLayout() {
           backgroundColor: "#0d0d0d",
         },
         headerTintColor: "#ffffff",
+        headerRight: () => <ProfileButton />,
       }}
     >
       <Tabs.Screen

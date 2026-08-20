@@ -221,7 +221,14 @@ export default function RankingsScreen() {
 
   const parseGenres = (genres: any) => {
     if (!Array.isArray(genres)) return null;
-    return genres.map((g: any) => (typeof g === "string" ? JSON.parse(g) : g));
+    return genres.map((g: any) => {
+      if (typeof g !== "string") return g;
+      try {
+        return JSON.parse(g);
+      } catch {
+        return { id: 0, name: g };
+      }
+    });
   };
 
   const loadRankings = async () => {
