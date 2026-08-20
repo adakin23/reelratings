@@ -36,7 +36,7 @@ export function countActiveFilters(filters: FilterState): number {
   if (filters.directors.length > 0) count++;
   if (filters.streamingServices.length > 0) count++;
   if (filters.sharedWithUsernames.length > 0) count++;
-  if (filters.statuses.length > 0) count++;
+  if ((filters.statuses?.length ?? 0) > 0) count++;
   return count;
 }
 
