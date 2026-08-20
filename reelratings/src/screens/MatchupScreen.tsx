@@ -22,8 +22,11 @@ const DIRECTION_LOCK_THRESHOLD = 15;
 
 // Matchups below this count use random pairing (baseline phase).
 // At or above this count, pairing switches to similar-ELO opponents (convergence phase).
-// To adjust: change this constant.
 const PAIRING_RANDOM_THRESHOLD = 10;
+
+// Movies need this many matchups to appear on Rankings.
+// Must match the constant in RankingsScreen.tsx.
+const MATCHUP_THRESHOLD = 5;
 
 interface Movie {
   id: string;
@@ -125,7 +128,6 @@ export default function MatchupScreen() {
   const exitFocusMode = () => {
     focusMovieRef.current = null;
     setFocusMovie(null);
-    // Clear the param by navigating to the tab without it
     router.replace("/(tabs)/");
     const uid = userIdRef.current;
     if (uid) loadNextPair(uid, null);
@@ -143,14 +145,12 @@ export default function MatchupScreen() {
     try {
       const chunkSize = 50;
 
-      // Insert movies into the movies table
       for (let i = 0; i < defaultMovies.length; i += chunkSize) {
         await supabase
           .from("movies")
           .upsert(defaultMovies.slice(i, i + chunkSize), { onConflict: "id" });
       }
 
-      // Add all movies to the user's library as 'watched'
       const userMovieRows = defaultMovies.map((m) => ({
         user_id: uid,
         movie_id: m.id,
@@ -170,6 +170,63 @@ export default function MatchupScreen() {
     }
   };
 
+  // Adds a replacement movie when one is removed from the pool (swiped left).
+  // Prefers the top predicted unwatched movie; falls back to a random movie.
+  const addReplacementMovie = async (uid: string) => {
+    try {
+      // Get all movie IDs already in the user's library
+      const { data: existing } = await supabase
+        .from("user_movies")
+        .select("movie_id")
+        .eq("user_id", uid);
+
+      const existingIds = new Set((existing ?? []).map((m: any) => m.movie_id));
+
+      let movieId: string | null = null;
+
+      // Prefer the best-predicted movie the user hasn't seen
+      const { data: predicted } = await supabase
+        .from("movie_predictions")
+        .select("movie_id")
+        .eq("user_id", uid)
+        .order("score", { ascending: false })
+        .limit(100);
+
+      if (predicted) {
+        const candidate = predicted.find((p) => !existingIds.has(p.movie_id));
+        if (candidate) movieId = candidate.movie_id;
+      }
+
+      // Fallback: random movie from the global pool not already in the library
+      if (!movieId) {
+        const { data: pool } = await supabase
+          .from("movies")
+          .select("id")
+          .limit(200);
+
+        const available = (pool ?? []).filter((m) => !existingIds.has(m.id));
+        if (available.length > 0) {
+          movieId = available[Math.floor(Math.random() * available.length)].id;
+        }
+      }
+
+      if (movieId) {
+        await supabase.from("user_movies").insert({
+          user_id: uid,
+          movie_id: movieId,
+          elo: 1000,
+          status: "watched",
+          matchup_count: 0,
+          win_count: 0,
+          loss_count: 0,
+        });
+      }
+    } catch (err) {
+      // Non-critical — pool size just won't grow if this fails
+      console.warn("addReplacementMovie failed:", err);
+    }
+  };
+
   const resetAnimations = () => {
     topTranslateX.setValue(0);
     bottomTranslateX.setValue(0);
@@ -184,7 +241,6 @@ export default function MatchupScreen() {
     setLoading(true);
     setSwipeHint(null);
     try {
-      // Use override if provided (handles the case where state hasn't updated yet)
       const fm =
         overrideFocusMovie !== undefined
           ? overrideFocusMovie
@@ -202,7 +258,6 @@ export default function MatchupScreen() {
           .single();
 
         if (!focusData) {
-          // Focus movie no longer available — exit focus mode and fall through
           focusMovieRef.current = null;
           setFocusMovie(null);
         } else {
@@ -239,7 +294,7 @@ export default function MatchupScreen() {
       }
 
       // Normal mode — hybrid pairing
-      // Step 1: pick Movie A from the least-seen movies (most in need of matchups)
+      // Fetch least-seen movies as the main candidate pool
       const { data: candidates } = await supabase
         .from("user_movies")
         .select(
@@ -255,20 +310,42 @@ export default function MatchupScreen() {
         return;
       }
 
-      // Pick randomly from the bottom 5 least-seen so we don't always show the same pair
-      const movieA = rowToMovie(
-        candidates[Math.floor(Math.random() * Math.min(5, candidates.length))],
-      );
+      // Also fetch movies one matchup away from the ranking threshold.
+      // These get 70% priority as movieA so they cross the line quickly.
+      const { data: nearThresholdData } = await supabase
+        .from("user_movies")
+        .select(
+          "movie_id, elo, matchup_count, movies(id, title, poster_path, release_date)",
+        )
+        .eq("user_id", uid)
+        .eq("status", "watched")
+        .eq("matchup_count", MATCHUP_THRESHOLD - 1)
+        .limit(10);
+
+      const nearThreshold = nearThresholdData ?? [];
+
+      // Pick movieA — prioritize near-threshold movies
+      let movieA: Movie;
+      if (nearThreshold.length > 0 && Math.random() < 0.7) {
+        movieA = rowToMovie(
+          nearThreshold[Math.floor(Math.random() * nearThreshold.length)],
+        );
+      } else {
+        movieA = rowToMovie(
+          candidates[
+            Math.floor(Math.random() * Math.min(5, candidates.length))
+          ],
+        );
+      }
 
       let movieB: Movie;
 
       if (movieA.matchup_count < PAIRING_RANDOM_THRESHOLD) {
-        // Early phase: random opponent — establishes a rough baseline fast
+        // Early phase: random opponent from least-seen pool
         const others = candidates.filter((c) => c.movie_id !== movieA.id);
         movieB = rowToMovie(others[Math.floor(Math.random() * others.length)]);
       } else {
-        // Later phase: find the opponent with the closest ELO to Movie A
-        // Fetch a broader pool then sort by ELO distance in JS
+        // Later phase: closest ELO opponent
         const { data: pool } = await supabase
           .from("user_movies")
           .select(
@@ -291,7 +368,6 @@ export default function MatchupScreen() {
               Math.abs(a.elo - movieA.elo) - Math.abs(b.elo - movieA.elo),
           );
 
-        // Pick randomly from the 5 closest to add variety and avoid repeating the same pair
         movieB =
           byEloDist[Math.floor(Math.random() * Math.min(5, byEloDist.length))];
       }
@@ -314,7 +390,6 @@ export default function MatchupScreen() {
     const winner = current.find((m) => m.id === winnerId)!;
     const loser = current.find((m) => m.id === loserId)!;
 
-    // Fetch current stats for both movies in parallel (needed for variable K and counters)
     const [{ data: wd }, { data: ld }] = await Promise.all([
       supabase
         .from("user_movies")
@@ -330,7 +405,6 @@ export default function MatchupScreen() {
         .single(),
     ]);
 
-    // Variable K-factor: each movie uses its own K based on how many matchups it's had
     const { newWinnerElo, newLoserElo, eloChange } = calculateElo(
       winner.elo,
       loser.elo,
@@ -370,7 +444,6 @@ export default function MatchupScreen() {
         elo_change: eloChange,
       }),
 
-      // Snapshot ELO after this matchup for the trend chart
       supabase.from("user_elo_history").insert([
         {
           user_id: uid,
@@ -397,7 +470,6 @@ export default function MatchupScreen() {
     const uid = userIdRef.current;
     if (!uid) return;
 
-    // If the focus movie itself gets swiped away, exit focus mode
     if (focusMovieRef.current?.id === movieId) {
       focusMovieRef.current = null;
       setFocusMovie(null);
@@ -408,6 +480,12 @@ export default function MatchupScreen() {
       .update({ status })
       .eq("user_id", uid)
       .eq("movie_id", movieId);
+
+    // When a movie is removed from the pool, add a replacement to keep the library size stable
+    if (status === "do_not_watch") {
+      addReplacementMovie(uid); // fire and forget — don't await, keep UI snappy
+    }
+
     await loadNextPair(uid);
   };
 
@@ -419,7 +497,6 @@ export default function MatchupScreen() {
       onPanResponderGrant: (evt) => {
         directionLocked.current = null;
         touchStartY.current = evt.nativeEvent.pageY;
-        // Account for the hint bar + focus banner height (~32 + optional 44)
         const offset = 32 + (focusMovieRef.current ? 44 : 0);
         const midpoint = (SCREEN_HEIGHT + offset) / 2;
         activeCard.current = touchStartY.current < midpoint ? "top" : "bottom";
@@ -491,7 +568,7 @@ export default function MatchupScreen() {
             }).start();
             return;
           }
-          const dy = gs.dy; // capture before animation — gs is mutable and resets
+          const dy = gs.dy;
           const toY = dy < 0 ? -SCREEN_HEIGHT : SCREEN_HEIGHT;
           Animated.parallel([
             Animated.timing(screenTranslateY, {
@@ -506,9 +583,8 @@ export default function MatchupScreen() {
             }),
           ]).start(() => {
             resetAnimations();
-            if (dy < 0)
-              handleVote(current[0].id, current[1].id); // swipe up → top wins
-            else handleVote(current[1].id, current[0].id); // swipe down → bottom wins
+            if (dy < 0) handleVote(current[0].id, current[1].id);
+            else handleVote(current[1].id, current[0].id);
           });
         } else {
           if (Math.abs(gs.dx) < SWIPE_THRESHOLD) {
@@ -571,7 +647,6 @@ export default function MatchupScreen() {
 
   return (
     <View style={styles.wrapper} {...panResponder.panHandlers}>
-      {/* Focus mode banner */}
       {focusMovie && (
         <View style={styles.focusBanner}>
           <Text style={styles.focusBannerText} numberOfLines={1}>
