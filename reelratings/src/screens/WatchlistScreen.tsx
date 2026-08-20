@@ -158,16 +158,7 @@ function applyFiltersAndSort(
 
 const parseGenres = (genres: any) => {
   if (!Array.isArray(genres)) return null;
-  return genres.map((g: any) => {
-    if (typeof g === "string") {
-      try {
-        return JSON.parse(g);
-      } catch {
-        return { id: 0, name: g }; // plain string like "Drama"
-      }
-    }
-    return g;
-  });
+  return genres.map((g: any) => (typeof g === "string" ? JSON.parse(g) : g));
 };
 
 export default function WatchlistScreen() {
@@ -501,14 +492,6 @@ export default function WatchlistScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Import button */}
-      <TouchableOpacity
-        style={styles.importButton}
-        onPress={() => router.push("/import")}
-      >
-        <Text style={styles.importButtonText}>↑ Import from Letterboxd</Text>
-      </TouchableOpacity>
-
       {/* Sort chips */}
       <View style={styles.sortRow}>
         {SORT_OPTIONS.map((opt) => (
@@ -659,17 +642,6 @@ const styles = StyleSheet.create({
   filterBtnActive: { backgroundColor: "#e8572a", borderColor: "#e8572a" },
   filterBtnText: { color: "#aaaaaa", fontSize: 14, fontWeight: "600" },
   filterBtnTextActive: { color: "#ffffff" },
-  importButton: {
-    marginHorizontal: 12,
-    marginBottom: 8,
-    padding: 10,
-    backgroundColor: "#1a1a1a",
-    borderRadius: 8,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#2a2a2a",
-  },
-  importButtonText: { color: "#e8572a", fontSize: 14, fontWeight: "600" },
   sortRow: {
     flexDirection: "row",
     flexWrap: "wrap",
