@@ -116,10 +116,28 @@ async function enrichMovie(movieId) {
 
 async function main() {
   console.log("Fetching movie list from database...");
-  const { data: movies, error } = await supabase.from("movies").select("id");
 
-  if (error || !movies) {
-    console.error("Failed to fetch movies:", error?.message);
+  // Supabase returns max 1000 rows by default — paginate to get all movies
+  const movies = [];
+  const PAGE_SIZE = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("movies")
+      .select("id")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) {
+      console.error("Failed to fetch movies:", error.message);
+      process.exit(1);
+    }
+    if (!data || data.length === 0) break;
+    movies.push(...data);
+    if (data.length < PAGE_SIZE) break; // last page
+    from += PAGE_SIZE;
+  }
+
+  if (movies.length === 0) {
+    console.error("No movies found in database.");
     process.exit(1);
   }
 

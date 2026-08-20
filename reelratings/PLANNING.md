@@ -393,11 +393,14 @@ Tap **"⚡ Rate This Movie Now"** on any movie detail page → navigates to Matc
 - [x] Actor/Director affinity scores (residual-based, normalized 0–100)
 - [x] movie_predictions table (predictions for all movies, not just watchlist)
 - [x] Shared watchlist filter (filter by a friend's watchlist)
+- [x] Rankings matchup threshold (5 matchups required to appear on Rankings; pending movies shown with italic count note)
+- [x] Discover screen — replaces Search tab. Browse mode: top ~3,500 movies by predicted rating with sort/filter/quick-add. Search mode: TMDB search for movies + people.
+- [x] importMovies.js — one-time bulk import script. Fetches ~5,000 movies from TMDB (popular, top_rated, discover), deduplicates, applies quality filters (vote_count ≥ 100, has poster + release date), inserts new movies only. Currently 3,595 movies in DB.
+- [x] enrichMovieData.js pagination fix — now fetches all movies from DB (not just first 1,000)
+- [x] movie_predictions FK — added foreign key from movie_predictions.movie_id → movies.id (required for Supabase nested select in Discover)
 
 ### Tier 1 — Next to Build (Priority Order)
 
-- [ ] **Rankings matchup threshold** — Movies only appear on Rankings after N matchups (threshold TBD). Rankings starts empty for new users. Add progress indicator on movie detail showing how many matchups until it appears.
-- [ ] **Discover screen** — Replace Search tab with Discover. Default view: all movies sorted by predicted rating. Full search, sort, and filter. Quick-add to watchlist or matchup library without navigating to detail page.
 - [ ] **Rankings: Movies / Actors / Directors tabs** — Three tabs on Rankings screen. Movies tab = current behavior. Actors tab = actors ranked by affinity score. Directors tab = directors ranked by affinity score.
 - [ ] **Swap seeding to 500-movie curated list** — Replace TMDB top_rated/popular with the curated 500-movie list. Ensure users don't lose data when switching from default to Letterboxd library.
 - [ ] **Replace removed movie in matchup pool** — When a user swipes left, automatically add a new popular movie to the library so the pool size stays consistent.
@@ -483,6 +486,9 @@ Stored in `.env` (never committed).
 | 2026-08-19 | Rankings gets Movies/Actors/Directors tabs      | Actors and directors deserve their own ranked lists based on affinity scores        |
 | 2026-08-19 | Auto-replace removed movies in matchup pool     | Keeps pool size consistent so users always have fresh matchups available            |
 | 2026-08-19 | Guarantee new ranking every ~30 matchups        | Prevents Rankings from feeling stagnant during early use                            |
+| 2026-08-19 | Bulk import 3,595 movies via importMovies.js    | Discover needs a broad movie pool; quality-filtered from TMDB popular/top_rated     |
+| 2026-08-19 | Discover scope: ReelRatings DB only (for now)   | Full TMDB coverage deferred; DB-only gives predicted scores for all shown movies    |
+| 2026-08-19 | Rankings threshold implemented at 5 matchups    | Starting value; revisit with real user data                                         |
 
 ---
 
