@@ -22,6 +22,7 @@ import {
 } from "../types/filters";
 
 const DEFAULT_FILTERS_KEY = "@reelratings/defaultFilters_rankings";
+const MATCHUP_THRESHOLD = 5; // Movies need this many matchups to appear on Rankings
 
 interface RankedMovie {
   movie_id: string;
@@ -153,6 +154,7 @@ function applyFiltersAndSort(
 export default function RankingsScreen() {
   const [movies, setMovies] = useState<RankedMovie[]>([]);
   const [displayed, setDisplayed] = useState<RankedMovie[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("elo_desc");
@@ -245,7 +247,7 @@ export default function RankingsScreen() {
       const minElo = Math.min(...elos);
       const maxElo = Math.max(...elos);
 
-      const ranked: RankedMovie[] = data.map((d) => {
+      const allRanked: RankedMovie[] = data.map((d) => {
         const m = d.movies as any;
         return {
           movie_id: d.movie_id,
@@ -266,7 +268,16 @@ export default function RankingsScreen() {
         };
       });
 
-      setMovies(ranked);
+      // Only show movies that have participated in enough matchups
+      const qualified = allRanked.filter(
+        (m) => m.matchup_count >= MATCHUP_THRESHOLD,
+      );
+      const pending = allRanked.filter(
+        (m) => m.matchup_count < MATCHUP_THRESHOLD,
+      );
+
+      setMovies(qualified);
+      setPendingCount(pending.length);
     } finally {
       setLoading(false);
     }
@@ -437,12 +448,22 @@ export default function RankingsScreen() {
         ))}
       </View>
 
+      {/* In-progress banner */}
+      {pendingCount > 0 && (
+        <Text style={styles.pendingNote}>
+          {pendingCount} movie{pendingCount === 1 ? "" : "s"} in progress — need{" "}
+          {MATCHUP_THRESHOLD}+ matchups to rank
+        </Text>
+      )}
+
       {displayed.length === 0 ? (
         <View style={styles.centered}>
           <Text style={styles.emptyText}>
-            {movies.length === 0
+            {movies.length === 0 && pendingCount === 0
               ? "No rankings yet — start swiping on the Match tab!"
-              : "No results match your filters."}
+              : movies.length === 0 && pendingCount > 0
+                ? `Keep swiping! Movies appear here after ${MATCHUP_THRESHOLD} matchups.\n${pendingCount} movie${pendingCount === 1 ? "" : "s"} in progress.`
+                : "No results match your filters."}
           </Text>
           {movies.length > 0 && activeFilterCount > 0 && (
             <TouchableOpacity onPress={() => setFilters(DEFAULT_FILTERS)}>
@@ -573,6 +594,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: "center",
     paddingHorizontal: 32,
+    lineHeight: 22,
   },
   clearLink: { color: "#e8572a", fontSize: 14, marginTop: 12 },
+  pendingNote: {
+    color: "#555555",
+    fontSize: 12,
+    textAlign: "center",
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    fontStyle: "italic",
+  },
 });
