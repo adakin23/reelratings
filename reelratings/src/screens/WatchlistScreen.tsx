@@ -156,6 +156,20 @@ function applyFiltersAndSort(
   return sorted;
 }
 
+const parseGenres = (genres: any) => {
+  if (!Array.isArray(genres)) return null;
+  return genres.map((g: any) => {
+    if (typeof g === "string") {
+      try {
+        return JSON.parse(g);
+      } catch {
+        return { id: 0, name: g }; // plain string like "Drama"
+      }
+    }
+    return g;
+  });
+};
+
 export default function WatchlistScreen() {
   const router = useRouter();
   const [movies, setMovies] = useState<WatchlistMovie[]>([]);
@@ -311,7 +325,7 @@ export default function WatchlistScreen() {
               title: m.title,
               poster_path: m.poster_path,
               release_date: m.release_date,
-              genres: m.genres,
+              genres: parseGenres(m.genres),
               runtime: m.runtime,
               original_language: m.original_language,
               top_cast: m.top_cast,
