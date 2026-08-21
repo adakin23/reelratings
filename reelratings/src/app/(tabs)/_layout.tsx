@@ -1,6 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Tabs, useRouter } from "expo-router";
-import { TouchableOpacity } from "react-native";
+import { Text, TouchableOpacity } from "react-native";
 
 function ProfileButton() {
   const router = useRouter();
@@ -9,7 +8,7 @@ function ProfileButton() {
       onPress={() => router.push("/profile")}
       style={{ marginRight: 16 }}
     >
-      <Ionicons name="person-circle-outline" size={28} color="#ffffff" />
+      <Text style={{ color: "#ffffff", fontSize: 24 }}>👤</Text>
     </TouchableOpacity>
   );
 }
